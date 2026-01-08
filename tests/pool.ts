@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import ref from 'ref-napi';
+import ref from '@napi-ffi/ref-napi';
 import '../dist/pool/interfaces.js';
 import { WorkerPool, type WorkerInterface } from '../dist/pool/index.js';
 

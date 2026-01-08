@@ -1,5 +1,9 @@
+ignoredBuiltDependencies:
+  - '@napi-ffi/get-symbol-from-current-process-h'
+  - unrs-resolver
+
 onlyBuiltDependencies:
-  - ref-napi
+  - '@napi-ffi/ref-napi'
 
 publicHoistPattern:
   - '*eslint*'
