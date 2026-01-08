@@ -99,7 +99,7 @@ async function callWorker(
 }
 
 /** Tagged worker */
-export type TaggedWorker<T> = Worker & { __workerInterface__: T };
+export type TaggedWorker<T = WorkerInterface> = Worker & { __workerInterface__: T };
 
 /** Status of worker */
 interface WorkerStatus<T> {
@@ -222,8 +222,8 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
         this.scheduleCleanup();
     }
 
-    /** destroy worker */
-    private destroyWorker(worker: TaggedWorker<T>): void {
+    /** destroy worker and remove it from the pool */
+    destroyWorker(worker: TaggedWorker<T>): void {
         this.workers.delete(worker);
         worker.terminate();
     }
