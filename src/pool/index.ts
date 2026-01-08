@@ -22,7 +22,7 @@ export interface WorkerPoolOptions {
     maxWorkers?: number;
     /**
      * Minimum number of idle workers to keep
-     * @default maxWorkers >= 4 ? 2 : 1
+     * @default maxWorkers >= 8 ? 2 : 1
      */
     minIdleWorkers?: number;
     /**
@@ -154,7 +154,7 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
     ) {
         const name = options?.name ?? 'worker-pool';
         const maxWorkers = options?.maxWorkers ?? Math.max(HARDWARE_CONCURRENCY - 1, 1);
-        let minIdleWorkers = options?.minIdleWorkers ?? (maxWorkers >= 4 ? 2 : 1);
+        let minIdleWorkers = options?.minIdleWorkers ?? (maxWorkers >= 8 ? 2 : 1);
         if (minIdleWorkers > maxWorkers) minIdleWorkers = maxWorkers;
         const idleWorkerTimeout = options?.idleWorkerTimeout ?? 5000;
 
@@ -187,12 +187,11 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
     readonly options: Required<WorkerPoolOptions>;
     private readonly factory: () => Promise<TaggedWorker<T>>;
 
+    private readonly initializingWorkers = new Set<Promise<TaggedWorker<T>>>();
     private readonly workers = new Map<TaggedWorker<T>, WorkerStatus<T>>();
     /** create and initialize worker */
-    private async initWorker(): Promise<WorkerStatus<T>> {
+    private async initWorker(): Promise<TaggedWorker<T>> {
         const worker = await this.factory();
-        const status = { worker, busy: true };
-        this.workers.set(worker, status);
         try {
             await waitForWorkerReady(worker, this.options.workerInitTimeout);
             const onError = (ev: ErrorEvent): void => {
@@ -204,8 +203,7 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
                 this.handlePendingBorrow();
             };
             worker.addEventListener('error', onError);
-            status.busy = false;
-            return status;
+            return worker;
         } catch (ex) {
             this.destroyWorker(worker);
             this.handlePendingBorrow();
@@ -251,27 +249,36 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
         worker.terminate();
     }
 
-    /** Get an idle worker */
-    private getIdleWorker(): WorkerStatus<T> | null {
-        for (const status of this.workers.values()) {
-            if (!status.busy) {
+    /** Get or create an idle worker */
+    private async getWorker(): Promise<WorkerStatus<T> | null> {
+        // try to find an idle worker
+        if (this.workers.size > 0) {
+            for (const status of this.workers.values()) {
+                if (status.busy) continue;
                 return status;
             }
+        }
+        // create a new worker if possible
+        if (this.workers.size + this.initializingWorkers.size < this.options.maxWorkers) {
+            const task = this.initWorker();
+            this.initializingWorkers.add(task);
+            let worker: TaggedWorker<T>;
+            try {
+                worker = await task;
+            } finally {
+                this.initializingWorkers.delete(task);
+            }
+            const status: WorkerStatus<T> = { worker, busy: false };
+            this.workers.set(worker, status);
+            return status;
         }
         return null;
     }
 
     /** Get or wait for an idle worker */
     async borrowWorker(): Promise<TaggedWorker<T>> {
-        // try to find an idle worker
-        const idleWorker = this.getIdleWorker();
-        if (idleWorker != null) {
-            idleWorker.busy = true;
-            return idleWorker.worker;
-        }
-        // create a new worker if possible
-        if (this.workers.size < this.options.maxWorkers) {
-            const status = await this.initWorker();
+        const status = await this.getWorker();
+        if (status != null) {
             status.busy = true;
             return status.worker;
         }
@@ -280,21 +287,17 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
             this.pendingBorrow.push(resolve);
         });
     }
+
     private readonly pendingBorrow: Array<(worker: TaggedWorker<T>) => void> = [];
     /** handle pending borrow */
     private handlePendingBorrow(): void {
         void Promise.resolve()
             .then(async () => {
                 while (this.pendingBorrow.length > 0) {
-                    const idle = this.getIdleWorker();
+                    const idle = await this.getWorker();
                     if (idle == null) break;
                     idle.busy = true;
                     this.pendingBorrow.shift()!(idle.worker);
-                }
-                while (this.pendingBorrow.length > 0 && this.workers.size < this.options.maxWorkers) {
-                    const worker = await this.initWorker();
-                    worker.busy = true;
-                    this.pendingBorrow.shift()!(worker.worker);
                 }
             })
             .catch((err) => {
