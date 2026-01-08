@@ -22,13 +22,15 @@
   "type": "module",
   "exports": {
     "./pool": "./dist/pool/index.js",
-    "./pool/worker": "./dist/pool/worker.js",
     "./polyfill": "./dist/polyfill.js",
     "./ponyfill": {
       "browser": "./dist/ponyfill/browser.js",
       "default": "./dist/ponyfill/node.js"
     },
     "./package.json": "./package.json"
+  },
+  "imports": {
+    "#node-worker": "./dist/ponyfill/node-worker.js"
   },
   "scripts": {
     "clean": "rimraf dist",

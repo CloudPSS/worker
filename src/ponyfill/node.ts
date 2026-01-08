@@ -1,3 +1,4 @@
+import { TAG, WORKER_URL, type WorkerData } from '#node-worker';
 import os from 'node:os';
 import { Worker as NodeWorker, type Transferable, parentPort } from 'node:worker_threads';
 
@@ -6,7 +7,11 @@ const kWorker = Symbol.for('@cloudpss/worker:worker');
 export class Worker extends EventTarget implements AbstractWorker, MessageEventTarget<Worker> {
     constructor(scriptURL: string | URL, options?: WorkerOptions) {
         super();
-        const worker = new NodeWorker(scriptURL, options);
+        if (typeof scriptURL != 'string') scriptURL = String(scriptURL);
+        const worker = new NodeWorker(new URL(WORKER_URL), {
+            name: options?.name,
+            workerData: { tag: TAG, url: scriptURL } satisfies WorkerData,
+        });
         worker.on('message', (data: unknown) => {
             const ev = new MessageEvent('message', { data });
             this.dispatchEvent(ev);

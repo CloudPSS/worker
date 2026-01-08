@@ -18,7 +18,8 @@ type WorkerFunctionReturn<W> =
 /**
  * A function type that can be executed in a worker thread
  */
-export type WorkerFunction<A extends unknown[] = unknown[], R = unknown> = (
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type WorkerFunction<A extends any[] = any[], R = any> = (
     ...args: A
 ) =>
     | R
@@ -59,7 +60,7 @@ async function exposeImpl<T extends Record<string, WorkerFunction>>(
             if (fn == null) {
                 throw new Error(`Method not found: ${method}`);
             }
-            const result = await fn(...args);
+            const result: unknown = await fn(...args);
             if (
                 result &&
                 typeof result == 'object' &&
