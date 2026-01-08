@@ -404,7 +404,7 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
     ): Promise<unknown> {
         const worker = await this.borrowWorker();
         try {
-            return await callWorker(worker, method, args, transfer);
+            return await this.callWorker(worker, method, args, transfer);
         } finally {
             this.returnWorker(worker);
         }
