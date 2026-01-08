@@ -22,6 +22,7 @@ jobs:
           name: build
           path: |
             dist/
+            pnpm-lock.yaml
 
   test:
     needs: build
