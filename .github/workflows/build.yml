@@ -16,9 +16,6 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Build deps
-        run: pnpm build:deps
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
