@@ -7,7 +7,8 @@ import {
     type WorkerResponse,
 } from './message.js';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { WorkerInterface, notifyReady } from './worker.js';
+import type { notifyReady } from './worker.js';
+import type { WorkerInterface, WorkerMethod, WorkerMethods } from './interfaces.js';
 
 const MAX_COPY_OVERHEAD = 1024 * 16; // 16KB
 
@@ -98,7 +99,7 @@ async function callWorker(
         };
         const onError = (ev: ErrorEvent): void => {
             cleanup();
-            reject(new Error(ev.message, { cause: ev.error }));
+            reject(new Error(`Worker error: ${ev.message}`, { cause: ev.error }));
         };
         const cleanup = (): void => {
             worker.removeEventListener('message', onMessage);
@@ -111,7 +112,7 @@ async function callWorker(
 
 const kInfo = Symbol('@cloudpss/worker:worker-info');
 /** Tagged worker */
-export type TaggedWorker<T extends WorkerInterface> = Worker & {
+export type TaggedWorker<T extends WorkerInterface | null = WorkerInterface | null> = Worker & {
     [kInfo]: {
         __pool__?: WorkerPool<T>;
         tag: symbol;
@@ -133,7 +134,7 @@ export async function waitForWorkerReady(worker: Worker, timeout = 30000): Promi
         };
         const onError = (ev: ErrorEvent): void => {
             cleanup();
-            reject(new Error(ev.message, { cause: ev.error }));
+            reject(new Error(`Worker initialization error: ${ev.message}`, { cause: ev.error }));
         };
         const onTimeout = (): void => {
             cleanup();
@@ -185,7 +186,7 @@ async function createWorkerFromSource(source: string | Blob, name: string): Prom
 }
 
 /** Worker pool */
-export class WorkerPool<T extends WorkerInterface> implements Disposable {
+export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements Disposable {
     constructor(source: WorkerSource, options?: WorkerPoolOptions) {
         const name = options?.name ?? 'worker-pool';
         const maxWorkers = options?.maxWorkers ?? Math.max(HARDWARE_CONCURRENCY - 1, 1);
@@ -387,24 +388,25 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
     }
 
     /** Call to a specific worker */
-    async callWorker<const M extends keyof T & string>(
+    async callWorker<const M extends WorkerMethods<T>>(
         worker: TaggedWorker<T>,
         method: M,
-        args: Parameters<T[M]>,
+        args: Parameters<WorkerMethod<T, M>>,
         transfer?: Transferable[],
-    ): Promise<unknown> {
-        return await callWorker(worker, method, args, transfer);
+    ): Promise<ReturnType<WorkerMethod<T, M>>> {
+        return (await callWorker(worker, method, args, transfer)) as Promise<ReturnType<WorkerMethod<T, M>>>;
     }
 
     /** Call to worker pool */
-    async call<const M extends keyof T & string>(
+    async call<const M extends WorkerMethods<T>>(
         method: M,
-        args: Parameters<T[M]>,
+        args: Parameters<WorkerMethod<T, M>>,
         transfer?: Transferable[],
-    ): Promise<unknown> {
+    ): Promise<ReturnType<WorkerMethod<T, M>>> {
         const worker = await this.borrowWorker();
         try {
-            return await this.callWorker(worker, method, args, transfer);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            return await this.callWorker<M>(worker, method, args, transfer);
         } finally {
             this.returnWorker(worker);
         }

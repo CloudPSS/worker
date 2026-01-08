@@ -6,30 +6,7 @@ import {
     type WorkerRequest,
     type WorkerResponse,
 } from './message.js';
-
-/** Return type of a worker function wrapped in a Promise */
-type WorkerFunctionReturn<W> =
-    W extends WorkerFunction<infer _, infer R>
-        ? Promise<Awaited<R>>
-        : W extends (...args: infer _) => infer R
-          ? Promise<Awaited<R>>
-          : never;
-
-/**
- * A function type that can be executed in a worker thread
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type WorkerFunction<A extends any[] = any[], R = any> = (
-    ...args: A
-) =>
-    | R
-    | PromiseLike<R>
-    | { result: R; transfer: Transferable[] }
-    | PromiseLike<{ result: R; transfer: Transferable[] }>;
-/** Interface of a worker exposing functions of type WorkerFunction */
-export type WorkerInterface<T extends Record<string, WorkerFunction> = Record<string, WorkerFunction>> = {
-    readonly [K in keyof T & string]: (...args: Parameters<T[K]>) => WorkerFunctionReturn<T[K]>;
-};
+import type { WorkerFunction, WorkerInterface } from './interfaces.js';
 
 /** Start listening for messages */
 async function exposeImpl<T extends Record<string, WorkerFunction>>(
@@ -129,5 +106,5 @@ export function expose<T extends Record<string, WorkerFunction>>(
     );
 
     // This dummy implementation is only for type inference
-    return undefined as unknown as WorkerInterface<T>;
+    return null;
 }
