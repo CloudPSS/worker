@@ -1,0 +1,59 @@
+name: build
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install
+        uses: ./.github/actions/install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Build deps
+        run: pnpm build:deps
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: build
+          path: |
+            dist/
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        node: ['lts/*', 'latest']
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: build
+
+      - name: Install
+        uses: ./.github/actions/install
+        with:
+          node-version: ${{ matrix.node }}
+          args: --ignore-scripts
+
+      - name: Run test
+        run: pnpm test
+
+      - name: Send coverage report
+        uses: codacy/codacy-coverage-reporter-action@v1
+        if: github.secret_source == 'Actions'
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}

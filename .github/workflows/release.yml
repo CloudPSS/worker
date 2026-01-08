@@ -1,0 +1,33 @@
+name: release
+
+on:
+  push:
+    tags: ['*']
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: build
+
+      - name: Install
+        uses: ./.github/actions/install
+
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Publish
+        run: npm publish --access=public --tag=${{ contains(github.ref, 'alpha') && 'alpha' || contains(github.ref, 'beta') && 'beta' || 'latest' }}

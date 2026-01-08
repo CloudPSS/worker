@@ -1,0 +1,35 @@
+name: check
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  pack:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: build
+
+      - name: Install
+        uses: ./.github/actions/install
+
+      - name: Pack
+        run: pnpm pack
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: package
+          path: '*.tgz'

@@ -1,0 +1,6 @@
+publicHoistPattern:
+  - '*eslint*'
+  - '*prettier*'
+  - '*commitlint*'
+  - 'lint-staged'
+shellEmulator: true
