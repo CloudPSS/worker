@@ -49,7 +49,7 @@ describe('should work with correct parallelism', () => {
         await POOL.call('sleep', [100]);
         expect(POOL.status()).toEqual({ idle: 1, busy: 0, initializing: 0, total: 1 });
         const data = Array.from({ length: MAX_WORKERS - 1 }, (_, i) => Math.random());
-        const echo = Promise.all(data.map((d) => POOL.call('sleep', [10, d])));
+        const echo = Promise.all(data.map((d) => POOL.call('sleep', [100, d])));
         expect(POOL.status()).toEqual({ idle: 0, busy: 1, initializing: MIN_IDLE - 1, total: MIN_IDLE });
         for (const [i, v] of (await echo).entries()) {
             expect(v).toBe(data[i]);
@@ -58,7 +58,7 @@ describe('should work with correct parallelism', () => {
     });
 
     it('run MAX_WORKERS tasks', async () => {
-        const wait = Promise.all(Array.from({ length: MAX_WORKERS }, () => POOL.call('sleep', [10])));
+        const wait = Promise.all(Array.from({ length: MAX_WORKERS }, () => POOL.call('sleep', [100])));
         expect(POOL.status()).toEqual({ idle: 0, busy: 0, initializing: MIN_IDLE, total: MIN_IDLE });
         for (const c of await wait) {
             expect(c).toBeUndefined();
@@ -67,7 +67,7 @@ describe('should work with correct parallelism', () => {
     });
 
     it('run over MAX_WORKERS tasks', async () => {
-        const wait = Promise.all(Array.from({ length: MAX_WORKERS + 10 }, () => POOL.call('sleep', [10])));
+        const wait = Promise.all(Array.from({ length: MAX_WORKERS + 10 }, () => POOL.call('sleep', [100])));
         expect(POOL.status()).toEqual({ idle: 0, busy: 0, initializing: MIN_IDLE, total: MIN_IDLE });
         for (const c of await wait) {
             expect(c).toBeUndefined();
