@@ -90,6 +90,21 @@ async function exposeImpl<T extends Record<string, WorkerFunction>>(
     });
 }
 
+/** Low level API, notify main thread that worker is ready */
+export function notifyReady(err?: Error): void {
+    if (!IS_WORKER_THREAD) {
+        throw new Error('notifyReady can only be called inside worker thread');
+    }
+    setTimeout(
+        () =>
+            postMessage({
+                [kID]: -1,
+                error: err ?? undefined,
+            } satisfies WorkerInitializationMessage),
+        1,
+    );
+}
+
 let exposed = false;
 /** Expose functions from worker */
 export function expose<T extends Record<string, WorkerFunction>>(
@@ -104,24 +119,11 @@ export function expose<T extends Record<string, WorkerFunction>>(
     exposeImpl(worker).then(
         () => {
             exposed = true;
-            setTimeout(
-                () =>
-                    postMessage({
-                        [kID]: -1,
-                    } satisfies WorkerInitializationMessage),
-                1,
-            );
+            notifyReady();
         },
         (ex) => {
             exposed = true;
-            setTimeout(
-                () =>
-                    postMessage({
-                        [kID]: -1,
-                        error: ex as Error,
-                    } satisfies WorkerInitializationMessage),
-                1,
-            );
+            notifyReady((ex as Error) ?? new Error('Unknown error'));
         },
     );
 

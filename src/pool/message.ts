@@ -11,7 +11,7 @@ export interface WorkerInitializationMessage extends WorkerMessage {
     /** @inheritdoc */
     [kID]: -1;
     /** Initialization error */
-    error?: Error;
+    error?: Error | undefined;
 }
 /** Request message sent to worker */
 export interface WorkerRequest extends WorkerMessage {
@@ -25,7 +25,7 @@ export interface WorkerResponse extends WorkerMessage {
     /** Result data */
     result: unknown;
     /** Error */
-    error?: Error;
+    error?: Error | undefined;
 }
 
 /** Check if a message is a WorkerMessage */
