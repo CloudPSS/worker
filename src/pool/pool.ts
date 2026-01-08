@@ -29,12 +29,17 @@ export interface WorkerPoolOptions {
      * Idle worker timeout in milliseconds, set to 0 to disable automatic cleanup
      * @default 5000
      */
-    idleWorkerTimeout?: number;
+    idleTimeout?: number;
     /**
      * Wait time in milliseconds for a worker initialization before timing out
      * @default 30000
      */
-    workerInitTimeout?: number;
+    initTimeout?: number;
+    /**
+     * Wait time in milliseconds for an idle worker before creating a new worker
+     * @default 0
+     */
+    creationDelay?: number;
 }
 
 let _id = 1;
@@ -104,16 +109,15 @@ async function callWorker(
     });
 }
 
+const kInfo = Symbol('@cloudpss/worker:worker-info');
 /** Tagged worker */
-export type TaggedWorker<T = WorkerInterface> = Worker & { __workerInterface__: T };
-
-/** Status of worker */
-interface WorkerStatus<T> {
-    /** The worker instance */
-    worker: TaggedWorker<T>;
-    /** Whether the worker is busy */
-    busy: boolean;
-}
+export type TaggedWorker<T extends WorkerInterface> = Worker & {
+    [kInfo]: {
+        __pool__?: WorkerPool<T>;
+        tag: symbol;
+        busy: boolean;
+    };
+};
 
 /** Low level API, wait for a worker to become available, i.e., call {@link notifyReady} method */
 export async function waitForWorkerReady(worker: Worker, timeout = 30000): Promise<void> {
@@ -187,7 +191,9 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
         const maxWorkers = options?.maxWorkers ?? Math.max(HARDWARE_CONCURRENCY - 1, 1);
         let minIdleWorkers = options?.minIdleWorkers ?? (maxWorkers >= 8 ? 2 : 1);
         if (minIdleWorkers > maxWorkers) minIdleWorkers = maxWorkers;
-        const idleWorkerTimeout = options?.idleWorkerTimeout ?? 5000;
+        const idleTimeout = options?.idleTimeout ?? 5000;
+        const initTimeout = options?.initTimeout ?? 30000;
+        const creationDelay = options?.creationDelay ?? 0;
 
         if (maxWorkers <= 0 || !Number.isSafeInteger(maxWorkers)) {
             throw new TypeError('Invalid maxWorkers option');
@@ -195,17 +201,25 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
         if (minIdleWorkers < 0 || !Number.isSafeInteger(minIdleWorkers)) {
             throw new TypeError('Invalid minIdleWorkers option');
         }
-        if (!Number.isFinite(idleWorkerTimeout) || idleWorkerTimeout < 0) {
+        if (!Number.isFinite(idleTimeout) || idleTimeout < 0) {
             throw new TypeError('Invalid idleWorkerTimeout option');
         }
+        if (!Number.isFinite(initTimeout) || initTimeout < 0) {
+            throw new TypeError('Invalid workerInitTimeout option');
+        }
+        if (!Number.isFinite(creationDelay) || creationDelay < 0) {
+            throw new TypeError('Invalid idleWorkerWaitTimeout option');
+        }
 
-        this.options = {
+        this.options = Object.freeze({
             name,
             maxWorkers,
             minIdleWorkers,
-            idleWorkerTimeout,
-            workerInitTimeout: options?.workerInitTimeout ?? 30000,
-        };
+            idleTimeout,
+            initTimeout,
+            creationDelay,
+        });
+        this.tag = Symbol(`@cloudpss/worker:pool:${name}`);
 
         if (typeof source == 'function') {
             this.factory = async () => {
@@ -217,25 +231,27 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
                     typeof result == 'string' ||
                     (typeof (result as Blob).size == 'number' && typeof (result as Blob).type == 'string')
                 ) {
-                    return (await createWorkerFromSource(result as string | Blob, name)) as TaggedWorker<T>;
+                    return await createWorkerFromSource(result as string | Blob, name);
                 } else {
-                    return result as TaggedWorker<T>;
+                    return result as Worker;
                 }
             };
         } else {
-            this.factory = () => createWorkerFromUrl(source, name) as TaggedWorker<T>;
+            this.factory = () => createWorkerFromUrl(source, name);
         }
     }
-    readonly options: Required<WorkerPoolOptions>;
-    private readonly factory: () => TaggedWorker<T> | Promise<TaggedWorker<T>>;
+    readonly options: Readonly<Required<WorkerPoolOptions>>;
+    private readonly factory: () => Worker | Promise<Worker>;
+    private readonly tag;
 
     private readonly initializingWorkers = new Set<Promise<TaggedWorker<T>>>();
-    private readonly workers = new Map<TaggedWorker<T>, WorkerStatus<T>>();
+    private readonly workers = new Set<TaggedWorker<T>>();
     /** create and initialize worker */
-    private async initWorker(): Promise<TaggedWorker<T>> {
-        const worker = await this.factory();
+    private async initWorker(info: TaggedWorker<T>[typeof kInfo]): Promise<TaggedWorker<T>> {
+        const worker = (await this.factory()) as TaggedWorker<T>;
+        worker[kInfo] = info;
         try {
-            await waitForWorkerReady(worker, this.options.workerInitTimeout);
+            await waitForWorkerReady(worker, this.options.initTimeout);
             const onError = (ev: ErrorEvent): void => {
                 // eslint-disable-next-line no-console
                 console.error(`${this.options.name} worker error`, ev);
@@ -255,13 +271,14 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
     private cleanupScheduleId: ReturnType<typeof setTimeout> | null = null;
     /** Schedule cleanup of idle workers */
     private scheduleCleanup(): void {
+        if (this.options.idleTimeout <= 0) return;
         if (this.cleanupScheduleId != null) clearTimeout(this.cleanupScheduleId);
 
         const id = setTimeout(() => {
             if (this.cleanupScheduleId === id) this.cleanupScheduleId = null;
             if (this.pendingBorrow.length > 0) return;
             // destroy extra idle workers
-            const idleWorkers = [...this.workers.values()].filter((w) => !w.busy).map((w) => w.worker);
+            const idleWorkers = [...this.workers].filter((w) => !w[kInfo].busy);
             const minIdle = this.options.minIdleWorkers;
             if (idleWorkers.length <= minIdle) return;
             const numToDestroy = idleWorkers.length - minIdle;
@@ -269,41 +286,60 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
                 const worker = idleWorkers[i]!;
                 this.destroyWorker(worker);
             }
-        }, this.options.idleWorkerTimeout);
+        }, this.options.idleTimeout);
         this.cleanupScheduleId = id;
     }
 
     /** return worker to pool */
     returnWorker(worker: TaggedWorker<T>): void {
-        const status = this.workers.get(worker);
-        if (status == null) {
+        if (!this.workers.has(worker)) {
             // Worker has been destroyed
             return;
         }
-        status.busy = false;
+        worker[kInfo].busy = false;
         this.handlePendingBorrow();
         this.scheduleCleanup();
     }
 
     /** destroy worker and remove it from the pool */
     destroyWorker(worker: TaggedWorker<T>): void {
-        this.workers.delete(worker);
+        if (!this.workers.delete(worker)) {
+            // Worker already removed
+            return;
+        }
         worker.terminate();
+    }
+
+    /** Get an idle worker */
+    private findIdleWorker(): TaggedWorker<T> | null {
+        for (const worker of this.workers) {
+            if (worker[kInfo].busy) continue;
+            worker[kInfo].busy = true;
+            return worker;
+        }
+        return null;
     }
 
     /** Get or create an idle worker */
     private async getWorker(): Promise<TaggedWorker<T> | null> {
         // try to find an idle worker
-        if (this.workers.size > 0) {
-            for (const status of this.workers.values()) {
-                if (status.busy) continue;
-                status.busy = true;
-                return status.worker;
+        {
+            const idle = this.findIdleWorker();
+            if (idle != null) return idle;
+        }
+        const currentTotal = this.workers.size + this.initializingWorkers.size;
+        if (currentTotal > 0 && currentTotal >= this.options.minIdleWorkers) {
+            // wait for creation delay
+            await new Promise((resolve) => setTimeout(resolve, this.options.creationDelay));
+            // try to find an idle worker again
+            {
+                const idle = this.findIdleWorker();
+                if (idle != null) return idle;
             }
         }
         // create a new worker if possible
         if (this.workers.size + this.initializingWorkers.size < this.options.maxWorkers) {
-            const task = this.initWorker();
+            const task = this.initWorker({ tag: this.tag, busy: true });
             this.initializingWorkers.add(task);
             let worker: TaggedWorker<T>;
             try {
@@ -311,8 +347,7 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
             } finally {
                 this.initializingWorkers.delete(task);
             }
-            const status: WorkerStatus<T> = { worker, busy: true };
-            this.workers.set(worker, status);
+            this.workers.add(worker);
             return worker;
         }
         return null;
@@ -377,7 +412,7 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
 
     /** cleanup all workers */
     destroy(): void {
-        for (const worker of this.workers.keys()) {
+        for (const worker of this.workers) {
             worker.terminate();
         }
         this.workers.clear();
@@ -391,8 +426,8 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
     status(): { total: number; idle: number; busy: number; initializing: number } {
         const initializing = this.initializingWorkers.size;
         let idle = 0;
-        for (const status of this.workers.values()) {
-            if (!status.busy) idle++;
+        for (const worker of this.workers) {
+            if (!worker[kInfo].busy) idle++;
         }
         return {
             total: this.workers.size + initializing,

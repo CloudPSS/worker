@@ -22,11 +22,11 @@ type WorkerAPI = {
 describe('should work with correct parallism', () => {
     const POOL = new WorkerPool<WorkerInterface<WorkerAPI>>(() => WORKER_SOURCE);
     const MAX_WORKERS = POOL.options.maxWorkers;
+    const MIN_IDLE = POOL.options.minIdleWorkers;
 
     beforeEach(() => {
         POOL.destroy();
     });
-
     afterAll(() => {
         POOL.destroy();
     });
@@ -40,7 +40,7 @@ describe('should work with correct parallism', () => {
         expect(POOL.status()).toEqual({ idle: 1, busy: 0, initializing: 0, total: 1 });
         const data = Array.from({ length: MAX_WORKERS - 1 }, (_, i) => Math.random());
         const echo = Promise.all(data.map((d) => POOL.call('echo', [d])));
-        expect(POOL.status()).toEqual({ idle: 0, busy: 1, initializing: MAX_WORKERS - 2, total: MAX_WORKERS - 1 });
+        expect(POOL.status()).toEqual({ idle: 0, busy: 1, initializing: MIN_IDLE - 1, total: MIN_IDLE });
         for (const [i, v] of (await echo).entries()) {
             expect(v).toBe(data[i]);
         }
@@ -49,7 +49,7 @@ describe('should work with correct parallism', () => {
 
     it('run MAX_WORKERS tasks', async () => {
         const wait = Promise.all(Array.from({ length: MAX_WORKERS }, () => POOL.call('sleep', [10])));
-        expect(POOL.status()).toEqual({ idle: 0, busy: 0, initializing: MAX_WORKERS, total: MAX_WORKERS });
+        expect(POOL.status()).toEqual({ idle: 0, busy: 0, initializing: MIN_IDLE, total: MIN_IDLE });
         for (const c of await wait) {
             expect(c).toBeUndefined();
         }
@@ -58,7 +58,7 @@ describe('should work with correct parallism', () => {
 
     it('run over MAX_WORKERS tasks', async () => {
         const wait = Promise.all(Array.from({ length: MAX_WORKERS + 10 }, () => POOL.call('sleep', [10])));
-        expect(POOL.status()).toEqual({ idle: 0, busy: 0, initializing: MAX_WORKERS, total: MAX_WORKERS });
+        expect(POOL.status()).toEqual({ idle: 0, busy: 0, initializing: MIN_IDLE, total: MIN_IDLE });
         for (const c of await wait) {
             expect(c).toBeUndefined();
         }
