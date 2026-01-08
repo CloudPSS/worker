@@ -1,6 +1,6 @@
 {
   "name": "@cloudpss/worker",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "WebWorker and Node Worker Threads wrapper with better usability.",
   "author": "OpportunityLiu <opportunity@live.in>",
   "license": "MIT",
