@@ -6,7 +6,8 @@ import {
     type WorkerRequest,
     type WorkerResponse,
 } from './message.js';
-import type { WorkerInterface } from './worker.js';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { WorkerInterface, notifyReady } from './worker.js';
 
 const MAX_COPY_OVERHEAD = 1024 * 16; // 16KB
 
@@ -29,6 +30,11 @@ export interface WorkerPoolOptions {
      * @default 5000
      */
     idleWorkerTimeout?: number;
+    /**
+     * Wait time in milliseconds for a worker initialization before timing out
+     * @default 30000
+     */
+    workerInitTimeout?: number;
 }
 
 let _id = 1;
@@ -108,6 +114,38 @@ interface WorkerStatus<T> {
     /** Whether the worker is busy */
     busy: boolean;
 }
+
+/** Low level API, wait for a worker to become available, i.e., call {@link notifyReady} method */
+export async function waitForWorkerReady(worker: Worker, timeout = 30000): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        const onMessage = (ev: MessageEvent<WorkerInitializationMessage>): void => {
+            if (!isWorkerMessage(ev.data) || ev.data[kID] !== -1) return;
+            cleanup();
+            if (ev.data.error !== undefined) {
+                reject(ev.data.error);
+            } else {
+                resolve();
+            }
+        };
+        const onError = (ev: ErrorEvent): void => {
+            cleanup();
+            reject(new Error(ev.message, { cause: ev.error }));
+        };
+        const onTimeout = (): void => {
+            cleanup();
+            reject(new Error(`Worker initialization timed out after ${timeout} ms`));
+        };
+        const cleanup = (): void => {
+            clearTimeout(timeoutId);
+            worker.removeEventListener('message', onMessage);
+            worker.removeEventListener('error', onError);
+        };
+        const timeoutId = setTimeout(onTimeout, timeout);
+        worker.addEventListener('message', onMessage);
+        worker.addEventListener('error', onError);
+    });
+}
+
 /** Worker pool */
 export class WorkerPool<T extends WorkerInterface> implements Disposable {
     constructor(
@@ -130,7 +168,13 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
             throw new TypeError('Invalid idleWorkerTimeout option');
         }
 
-        this.options = { name, maxWorkers, minIdleWorkers, idleWorkerTimeout };
+        this.options = {
+            name,
+            maxWorkers,
+            minIdleWorkers,
+            idleWorkerTimeout,
+            workerInitTimeout: options?.workerInitTimeout ?? 30000,
+        };
 
         if (typeof factoryOrUrl === 'function') {
             this.factory = factoryOrUrl as () => Promise<TaggedWorker<T>>;
@@ -150,28 +194,7 @@ export class WorkerPool<T extends WorkerInterface> implements Disposable {
         const status = { worker, busy: true };
         this.workers.set(worker, status);
         try {
-            await new Promise<void>((resolve, reject) => {
-                const onMessage = (ev: MessageEvent<WorkerInitializationMessage>): void => {
-                    if (!isWorkerMessage(ev.data) || ev.data[kID] !== -1) return;
-                    cleanup();
-                    if (ev.data.error !== undefined) {
-                        reject(ev.data.error);
-                        this.workers.delete(worker);
-                    } else {
-                        resolve();
-                    }
-                };
-                const onError = (ev: ErrorEvent): void => {
-                    cleanup();
-                    reject(new Error(ev.message, { cause: ev.error }));
-                };
-                const cleanup = (): void => {
-                    worker.removeEventListener('message', onMessage);
-                    worker.removeEventListener('error', onError);
-                };
-                worker.addEventListener('message', onMessage);
-                worker.addEventListener('error', onError);
-            });
+            await waitForWorkerReady(worker, this.options.workerInitTimeout);
             const onError = (ev: ErrorEvent): void => {
                 // eslint-disable-next-line no-console
                 console.error(`${this.options.name} worker error`, ev);
