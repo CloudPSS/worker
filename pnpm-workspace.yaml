@@ -1,6 +1,10 @@
+onlyBuiltDependencies:
+  - ref-napi
+
 publicHoistPattern:
   - '*eslint*'
   - '*prettier*'
   - '*commitlint*'
-  - 'lint-staged'
+  - lint-staged
+
 shellEmulator: true

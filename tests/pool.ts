@@ -1,3 +1,6 @@
+import { randomBytes } from 'node:crypto';
+import ref from 'ref-napi';
+import '../dist/pool/interfaces.js';
 import { WorkerPool, type WorkerInterface } from '../dist/pool/index.js';
 
 const WORKER_SOURCE = /* js */ `
@@ -12,14 +15,18 @@ expose({
     },
     error(e) {
         throw e;
+    },
+    transfer(data) {
+        return { result: data, transfer: [data.buffer] };
     }
 });
 `;
 
 type WorkerAPI = {
-    sleep(ms: number): Promise<void>;
+    sleep<T = void>(ms: number, data?: T): Promise<T>;
     echo<T>(data: T): T;
     error(msg: unknown): never;
+    transfer(data: Uint8Array<ArrayBuffer>): { result: Uint8Array<ArrayBuffer>; transfer: [ArrayBuffer] };
 };
 const POOL = new WorkerPool<WorkerInterface<WorkerAPI>>(() => WORKER_SOURCE);
 
@@ -81,5 +88,41 @@ describe('should handle errors correctly', () => {
     it('error Error', async () => {
         await expect(POOL.call('error', [new Error('custom error')])).rejects.toThrow(new Error('custom error'));
         expect(POOL.status()).toEqual({ idle: 1, busy: 0, initializing: 0, total: 1 });
+    });
+});
+
+describe('should transfer data correctly', () => {
+    const DATA = new Uint8Array(randomBytes(1024 * 64).buffer);
+    it('transfer from worker', async () => {
+        const data = DATA.slice();
+        const result = await POOL.call('transfer', [data]);
+        expect(result).toBeInstanceOf(Uint8Array);
+        expect(result).not.toBe(data);
+        expect(data.byteLength).toBe(DATA.byteLength);
+        expect(result).toEqual(DATA);
+    });
+
+    it('transfer to worker', async () => {
+        const data = DATA.slice();
+        const addressBefore = ref.address(data as Buffer<ArrayBuffer>);
+        const result = await POOL.call('echo', [data], [data.buffer]);
+        expect(result).toBeInstanceOf(Uint8Array);
+        expect(result).not.toBe(data);
+        expect(result).toEqual(DATA);
+        expect(data.byteLength).toBe(0);
+        const addressAfter = ref.address(result as Buffer<ArrayBuffer>);
+        expect(addressBefore).not.toBe(addressAfter);
+    });
+
+    it('transfer both ways', async () => {
+        const data = DATA.slice();
+        const addressBefore = ref.address(data as Buffer<ArrayBuffer>);
+        const result = await POOL.call('transfer', [data], [data.buffer]);
+        expect(result).toBeInstanceOf(Uint8Array);
+        expect(result).not.toBe(data);
+        expect(result).toEqual(DATA);
+        expect(data.byteLength).toBe(0);
+        const addressAfter = ref.address(result as Buffer<ArrayBuffer>);
+        expect(addressBefore).toBe(addressAfter);
     });
 });
