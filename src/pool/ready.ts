@@ -11,7 +11,7 @@ export function notifyReady(err?: Error): void {
 }
 
 /** Low level API, wait for a worker to become available, i.e., call {@link notifyReady} method */
-export async function waitForWorkerReady(worker: Worker, timeout = 30000): Promise<void> {
+export async function waitForWorkerReady(worker: Worker, timeout = 30000, signal?: AbortSignal): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const onMessage = (ev: MessageEvent<WorkerInitializationMessage>): void => {
             if (!isWorkerMessage(ev.data) || ev.data[kID] !== -1) return;
@@ -30,12 +30,19 @@ export async function waitForWorkerReady(worker: Worker, timeout = 30000): Promi
             cleanup();
             reject(new Error(`Worker initialization timed out after ${timeout} ms`));
         };
+        const onAbort = (): void => {
+            cleanup();
+            reject((signal?.reason as Error) ?? new Error('Worker initialization aborted'));
+        };
         const cleanup = (): void => {
-            clearTimeout(timeoutId);
+            if (timeoutId) clearTimeout(timeoutId);
             worker.removeEventListener('message', onMessage);
             worker.removeEventListener('error', onError);
+            signal?.removeEventListener('abort', onAbort);
         };
-        const timeoutId = setTimeout(onTimeout, timeout);
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (timeout > 0) timeoutId = setTimeout(onTimeout, timeout);
+        signal?.addEventListener('abort', onAbort);
         worker.addEventListener('message', onMessage);
         worker.addEventListener('error', onError);
     });

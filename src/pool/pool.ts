@@ -1,50 +1,21 @@
-import { HARDWARE_CONCURRENCY } from '@cloudpss/worker/ponyfill';
 import { isWorkerMessage, kID, type WorkerRequest, type WorkerResponse } from './message.js';
-import type { WorkerInterface, WorkerMethod, WorkerMethods } from './interfaces.js';
+import type { MaybeAsync, WorkerInterface, WorkerMethod, WorkerMethods } from './interfaces.js';
 import { createWorkerFactory, type WorkerSource } from './factory.js';
 import { nextId } from './id.js';
 import { waitForWorkerReady } from './ready.js';
+import { createWorkerPoolOptions, type WorkerPoolOptions } from './options.js';
 
 const MAX_COPY_OVERHEAD = 1024 * 16; // 16KB
-
-/** Worker pool options */
-export interface WorkerPoolOptions {
-    /** Name of the worker pool */
-    name?: string;
-    /**
-     * Maximum number of workers in the pool
-     * @default navigator.hardwareConcurrency - 1
-     */
-    maxWorkers?: number;
-    /**
-     * Minimum number of idle workers to keep
-     * @default 1
-     */
-    minIdleWorkers?: number;
-    /**
-     * Idle worker timeout in milliseconds, set to 0 to disable automatic cleanup
-     * @default 5000
-     */
-    idleTimeout?: number;
-    /**
-     * Wait time in milliseconds for a worker initialization before timing out
-     * @default 30000
-     */
-    initTimeout?: number;
-    /**
-     * Wait time in milliseconds for an idle worker before creating a new worker
-     * @default 0
-     */
-    creationDelay?: number;
-}
 
 /** Call to a specific worker */
 async function callWorker(
     worker: Worker,
+    signal: AbortSignal | null,
     method: WorkerRequest['method'],
     args: WorkerRequest['args'],
     transfer?: Transferable[],
 ): Promise<unknown> {
+    signal?.throwIfAborted();
     const id = nextId();
     const request: WorkerRequest = {
         [kID]: id,
@@ -88,75 +59,59 @@ async function callWorker(
             cleanup();
             reject(new Error(`Worker error: ${ev.message}`, { cause: ev.error }));
         };
+        const onAbort = (): void => {
+            cleanup();
+            reject((signal?.reason as Error) ?? new Error('Operation aborted'));
+        };
         const cleanup = (): void => {
             worker.removeEventListener('message', onMessage);
             worker.removeEventListener('error', onError);
+            signal?.removeEventListener('abort', onAbort);
         };
         worker.addEventListener('message', onMessage);
         worker.addEventListener('error', onError);
+        signal?.addEventListener('abort', onAbort);
     });
 }
 
 const kInfo = Symbol('@cloudpss/worker:worker-info');
-/** Tagged worker */
-export type TaggedWorker<T extends WorkerInterface | null = WorkerInterface | null> = Worker & {
-    [kInfo]: {
-        __pool__?: WorkerPool<T>;
-        tag: symbol;
-        busy: boolean;
-    };
+/** Worker information */
+interface WorkerInfo<T extends WorkerPool> {
+    /** Unique tag of the worker pool */
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    tag: symbol & { __pool__?: T & never };
+    /** Whether the worker is currently busy */
+    busy: boolean;
+    /** Abort controller to terminate the worker */
+    controller: AbortController;
+}
+/** Tagged data */
+type TaggedData<D extends object, T extends WorkerPool> = D & {
+    [kInfo]: WorkerInfo<T>;
 };
+/** Tagged worker */
+export type TaggedWorker<T extends WorkerPool = WorkerPool> = TaggedData<Worker, T>;
 
 /** Worker pool */
 export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements Disposable {
     constructor(source: WorkerSource, options?: WorkerPoolOptions) {
-        const name = options?.name ?? 'worker-pool';
-        const maxWorkers = options?.maxWorkers ?? Math.max(HARDWARE_CONCURRENCY - 1, 1);
-        let minIdleWorkers = options?.minIdleWorkers ?? 1;
-        if (minIdleWorkers > maxWorkers) minIdleWorkers = maxWorkers;
-        const idleTimeout = options?.idleTimeout ?? 5000;
-        const initTimeout = options?.initTimeout ?? 30000;
-        const creationDelay = options?.creationDelay ?? 0;
-
-        if (maxWorkers <= 0 || !Number.isSafeInteger(maxWorkers)) {
-            throw new TypeError('Invalid maxWorkers option');
-        }
-        if (minIdleWorkers < 0 || !Number.isSafeInteger(minIdleWorkers)) {
-            throw new TypeError('Invalid minIdleWorkers option');
-        }
-        if (!Number.isFinite(idleTimeout) || idleTimeout < 0) {
-            throw new TypeError('Invalid idleWorkerTimeout option');
-        }
-        if (!Number.isFinite(initTimeout) || initTimeout < 0) {
-            throw new TypeError('Invalid workerInitTimeout option');
-        }
-        if (!Number.isFinite(creationDelay) || creationDelay < 0) {
-            throw new TypeError('Invalid idleWorkerWaitTimeout option');
-        }
-
-        this.options = Object.freeze({
-            name,
-            maxWorkers,
-            minIdleWorkers,
-            idleTimeout,
-            initTimeout,
-            creationDelay,
-        });
+        this.options = Object.freeze(createWorkerPoolOptions(options));
+        const { name, workerOptions } = this.options;
         this.tag = Symbol(`@cloudpss/worker:pool:${name}`);
-        this.factory = createWorkerFactory(source, { name });
+        this.factory = createWorkerFactory(source, workerOptions);
     }
     readonly options: Readonly<Required<WorkerPoolOptions>>;
     private readonly factory;
-    private readonly tag;
-
-    private readonly initializingWorkers = new Set<Promise<TaggedWorker<T>>>();
-    private readonly workers = new Set<TaggedWorker<T>>();
+    private readonly tag: WorkerInfo<this>['tag'];
+    private readonly initializingWorkers = new Set<TaggedData<Promise<TaggedWorker<this>>, this>>();
+    private readonly workers = new Set<TaggedWorker<this>>();
     /** create and initialize worker */
-    private async initWorker(info: TaggedWorker<T>[typeof kInfo]): Promise<TaggedWorker<T>> {
-        const worker = (await this.factory()) as TaggedWorker<T>;
+    private async initWorker(info: WorkerInfo<this>, signal: AbortSignal): Promise<TaggedWorker<this>> {
+        const worker = (await this.factory()) as TaggedWorker<this>;
+        signal.throwIfAborted();
         worker[kInfo] = info;
         try {
-            await waitForWorkerReady(worker, this.options.initTimeout);
+            await waitForWorkerReady(worker, this.options.initTimeout, signal);
             const onError = (ev: ErrorEvent): void => {
                 // eslint-disable-next-line no-console
                 console.error(`${this.options.name} worker error`, ev);
@@ -174,10 +129,17 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
         }
     }
     private cleanupScheduleId: ReturnType<typeof setTimeout> | null = null;
+    /** Unschedule cleanup of idle workers */
+    private unscheduleCleanup(): void {
+        if (this.cleanupScheduleId != null) {
+            clearTimeout(this.cleanupScheduleId);
+            this.cleanupScheduleId = null;
+        }
+    }
     /** Schedule cleanup of idle workers */
     private scheduleCleanup(): void {
         if (this.options.idleTimeout <= 0) return;
-        if (this.cleanupScheduleId != null) clearTimeout(this.cleanupScheduleId);
+        this.unscheduleCleanup();
 
         const id = setTimeout(() => {
             if (this.cleanupScheduleId === id) this.cleanupScheduleId = null;
@@ -196,7 +158,7 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
     }
 
     /** return worker to pool */
-    returnWorker(worker: TaggedWorker<T>): void {
+    returnWorker(worker: TaggedWorker<this>): void {
         if (!this.workers.has(worker)) {
             // Worker has been destroyed
             return;
@@ -207,16 +169,16 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
     }
 
     /** destroy worker and remove it from the pool */
-    destroyWorker(worker: TaggedWorker<T>): void {
+    destroyWorker(worker: TaggedWorker<this>): void {
         if (!this.workers.delete(worker)) {
             // Worker already removed
             return;
         }
-        worker.terminate();
+        worker[kInfo].controller.abort(new Error(`Worker in pool ${this.options.name} has been destroyed`));
     }
 
     /** Get an idle worker */
-    private findIdleWorker(): TaggedWorker<T> | null {
+    private findIdleWorker(): TaggedWorker<this> | null {
         for (const worker of this.workers) {
             if (worker[kInfo].busy) continue;
             worker[kInfo].busy = true;
@@ -226,27 +188,39 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
     }
 
     /** Create a new worker if possible */
-    private createWorker(): Promise<TaggedWorker<T>> | null {
+    private createWorker(): Promise<TaggedWorker<this>> | null {
         if (this.workers.size + this.initializingWorkers.size >= this.options.maxWorkers) {
             return null;
         }
 
         return (async () => {
-            const task = this.initWorker({ tag: this.tag, busy: true });
+            const controller = new AbortController();
+            const info = {
+                tag: this.tag,
+                busy: true,
+                controller,
+            };
+            const task = this.initWorker(info, controller.signal) as TaggedData<Promise<TaggedWorker<this>>, this>;
+            task[kInfo] = info;
             this.initializingWorkers.add(task);
-            let worker: TaggedWorker<T>;
+            let worker: TaggedWorker<this>;
             try {
                 worker = await task;
             } finally {
                 this.initializingWorkers.delete(task);
             }
+            if (controller.signal.aborted) {
+                worker.terminate();
+                controller.signal.throwIfAborted();
+            }
+            controller.signal.addEventListener('abort', () => worker.terminate());
             this.workers.add(worker);
             return worker;
         })();
     }
 
     /** Get or wait for an idle worker */
-    async borrowWorker(): Promise<TaggedWorker<T>> {
+    async borrowWorker(): Promise<TaggedWorker<this>> {
         // try to find an idle worker
         const idle = this.findIdleWorker();
         if (idle != null) return idle;
@@ -271,7 +245,7 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
         });
     }
 
-    private readonly pendingBorrow: Array<(worker: TaggedWorker<T>) => void> = [];
+    private readonly pendingBorrow: Array<(worker: MaybeAsync<TaggedWorker<this>>) => void> = [];
     /** handle pending borrow */
     private handlePendingBorrow(): void {
         void Promise.resolve()
@@ -300,12 +274,17 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
 
     /** Call to a specific worker */
     async callWorker<const M extends WorkerMethods<T>>(
-        worker: TaggedWorker<T>,
+        worker: TaggedWorker<this>,
         method: M,
         args: Parameters<WorkerMethod<T, M>>,
         transfer?: Transferable[],
     ): Promise<ReturnType<WorkerMethod<T, M>>> {
-        return (await callWorker(worker, method, args, transfer)) as Promise<ReturnType<WorkerMethod<T, M>>>;
+        const info = worker[kInfo];
+        if (info == null) {
+            throw new Error('Invalid tagged worker');
+        }
+        const result = await callWorker(worker, info.controller.signal, method, args, transfer);
+        return result as Promise<ReturnType<WorkerMethod<T, M>>>;
     }
 
     /** Call to worker pool */
@@ -325,10 +304,20 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
 
     /** cleanup all workers */
     destroy(): void {
+        const reason = () => new Error(`Worker pool ${this.options.name} has been destroyed`);
         for (const worker of this.workers) {
-            worker.terminate();
+            worker[kInfo].controller.abort(reason());
         }
         this.workers.clear();
+        for (const task of this.initializingWorkers) {
+            task[kInfo].controller.abort(reason());
+        }
+        this.initializingWorkers.clear();
+        this.unscheduleCleanup();
+        const pending = this.pendingBorrow.splice(0);
+        for (const resolver of pending) {
+            resolver(Promise.reject(reason()));
+        }
     }
     /** Dispose the worker pool */
     [Symbol.dispose](): void {
