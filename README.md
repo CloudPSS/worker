@@ -94,9 +94,13 @@ import { WorkerPool, type WorkerInterface } from '@cloudpss/worker/pool';
 // Use import type to avoid runtime dependency
 import type WorkerAPI from './pool-worker.js';
 
-const pool = new WorkerPool<typeof WorkerAPI>(new URL('./pool-worker.js', import.meta.url), {
-  maxWorkers: 4,
-});
+const pool = new WorkerPool<typeof WorkerAPI>(
+  // Use a factory that creates a new Worker instance to make bundlers deal with it correctly
+  () => new Worker(new URL('./pool-worker.js', import.meta.url)),
+  {
+    maxWorkers: 4,
+  },
+);
 
 const result = await pool.call('sleep', [100, 'hello']);
 console.log(result); // => 'hello'
