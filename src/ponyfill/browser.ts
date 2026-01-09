@@ -14,7 +14,8 @@ export function postMessage(value: unknown, transfer?: Transferable[]): void {
     self.postMessage(value, transfer!);
 }
 
-// eslint-disable-next-line unicorn/prefer-global-this
-export const IS_WORKER_THREAD = typeof self != 'undefined' && self instanceof WorkerGlobalScope;
+export const IS_WORKER_THREAD =
+    // eslint-disable-next-line unicorn/prefer-global-this
+    typeof self != 'undefined' && typeof WorkerGlobalScope == 'function' && self instanceof WorkerGlobalScope;
 
 export const HARDWARE_CONCURRENCY = globalThis.navigator?.hardwareConcurrency ?? 4;
