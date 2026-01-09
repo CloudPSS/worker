@@ -56,6 +56,7 @@ async function exposeImpl<T extends Record<string, WorkerFunction>>(worker: Mayb
     }
     onMessage(async (msg) => handleMessage(worker, msg));
 }
+
 let exposed = false;
 /** Expose functions from worker */
 export function expose<T extends Record<string, WorkerFunction>>(
@@ -67,16 +68,8 @@ export function expose<T extends Record<string, WorkerFunction>>(
     if (exposed) {
         throw new Error('expose can only be called once per worker');
     }
-    exposeImpl(worker).then(
-        () => {
-            exposed = true;
-            notifyReady();
-        },
-        (ex) => {
-            exposed = true;
-            notifyReady((ex as Error) ?? new Error('Unknown error'));
-        },
-    );
+    exposed = true;
+    notifyReady(exposeImpl(worker));
 
     // This dummy implementation is only for type inference
     return null;

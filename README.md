@@ -167,8 +167,8 @@ pool.destroy();
 - `function expose<T extends Record<string, WorkerFunction>>(worker: T | (() => T) | (() => PromiseLike<T>))`
   - Worker-side helper that exposes an object of functions to the main thread.
   - Must be called exactly once inside a worker; it automatically sets up message handling and calls `notifyReady()`.
-- `function notifyReady(error?: Error): void`
-  - Low-level worker-side API. Manually notifies the main thread that initialization has completed (with optional error).
+- `function notifyReady(ready?: Promise<unknown>): void`
+  - Low-level worker-side API. Manually notifies the main thread that initialization has completed (successfully or with an error).
 - `function waitForWorkerReady(worker: Worker, timeout?: number, signal?: AbortSignal): Promise<void>`
   - Low-level main-thread API. Waits until the worker calls `notifyReady` or until `timeout`/`signal` aborts.
 
