@@ -2,34 +2,36 @@ import { HARDWARE_CONCURRENCY } from '@cloudpss/worker/ponyfill';
 
 /** Worker pool options */
 export interface WorkerPoolOptions {
-    /** Name of the worker pool */
+    /** Name of the worker pool. */
     name?: string;
     /**
-     * Maximum number of workers in the pool
+     * Maximum number of workers in the pool.
      * @default navigator.hardwareConcurrency - 1
      */
     maxWorkers?: number;
     /**
-     * Minimum number of idle workers to keep
+     * Minimum number of idle workers to keep.
      * @default 1
      */
     minIdleWorkers?: number;
     /**
-     * Idle worker timeout in milliseconds, set to 0 to disable automatic cleanup
+     * Milliseconds before extra idle workers are cleaned up. 0 disables cleanup.
      * @default 5000
      */
     idleTimeout?: number;
     /**
-     * Wait time in milliseconds for a worker initialization before timing out
+     * Milliseconds to wait for a worker to signal readiness before failing.
      * @default 30000
      */
     initTimeout?: number;
     /**
-     * Wait time in milliseconds for an idle worker before creating a new worker
+     * Delay before creating a new worker when the pool is already warm.
      * @default 0
      */
     creationDelay?: number;
-    /** Additional options for worker creation */
+    /**
+     * Extra options passed to the underlying {@link Worker} constructor
+     */
     workerOptions?: WorkerOptions;
 }
 

@@ -1,66 +1,60 @@
 import { IS_WORKER_THREAD, onMessage, postMessage } from '@cloudpss/worker/ponyfill';
 import { isWorkerMessage, kID, type WorkerRequest, type WorkerResponse } from './message.js';
-import type { WorkerFunction, WorkerInterface } from './interfaces.js';
+import type { MaybeFactory, WorkerFunction, WorkerInterface } from './interfaces.js';
 import { notifyReady } from './ready.js';
 
+/** Message handler */
+async function handleMessage<T extends Record<string, WorkerFunction>>(worker: T, msg: unknown): Promise<void> {
+    if (!isWorkerMessage(msg)) {
+        // ignore invalid message
+        return;
+    }
+    const { method, args, [kID]: id } = msg as WorkerRequest;
+    if (typeof method != 'string' || !Array.isArray(args)) {
+        // ignore invalid message
+        return;
+    }
+    try {
+        const fn = worker[method];
+        if (typeof fn != 'function') {
+            throw new TypeError(`Method not found: ${method}`);
+        }
+        const result: unknown = await Reflect.apply(fn, worker, args);
+        if (
+            result &&
+            typeof result == 'object' &&
+            'result' in result &&
+            'transfer' in result &&
+            Array.isArray(result.transfer)
+        ) {
+            postMessage(
+                {
+                    [kID]: id,
+                    result: result.result,
+                } satisfies WorkerResponse,
+                result.transfer,
+            );
+        } else {
+            postMessage({
+                [kID]: id,
+                result,
+            } satisfies WorkerResponse);
+        }
+    } catch (ex) {
+        postMessage({
+            [kID]: id,
+            result: undefined,
+            error: (ex as Error) ?? new Error('Unknown error'),
+        } satisfies WorkerResponse);
+    }
+}
+
 /** Start listening for messages */
-async function exposeImpl<T extends Record<string, WorkerFunction>>(
-    worker: T | (() => T) | (() => PromiseLike<T>),
-): Promise<void> {
+async function exposeImpl<T extends Record<string, WorkerFunction>>(worker: MaybeFactory<T>): Promise<void> {
     if (typeof worker == 'function') {
         worker = await worker();
     }
-    const functions = new Map<string, WorkerFunction>();
-    for (const key of Object.keys(worker)) {
-        const fn = (worker as Record<string, unknown>)[key];
-        if (typeof fn == 'function') {
-            functions.set(key, fn.bind(worker) as WorkerFunction);
-        }
-    }
-    onMessage(async (msg) => {
-        if (!isWorkerMessage(msg)) {
-            // ignore invalid message
-            return;
-        }
-        const { method, args, [kID]: id } = msg as WorkerRequest;
-        if (typeof method != 'string' || !Array.isArray(args)) {
-            // ignore invalid message
-            return;
-        }
-        try {
-            const fn = functions.get(method);
-            if (fn == null) {
-                throw new Error(`Method not found: ${method}`);
-            }
-            const result: unknown = await fn(...args);
-            if (
-                result &&
-                typeof result == 'object' &&
-                'result' in result &&
-                'transfer' in result &&
-                Array.isArray(result.transfer)
-            ) {
-                postMessage(
-                    {
-                        [kID]: id,
-                        result: result.result,
-                    } satisfies WorkerResponse,
-                    result.transfer,
-                );
-            } else {
-                postMessage({
-                    [kID]: id,
-                    result,
-                } satisfies WorkerResponse);
-            }
-        } catch (ex) {
-            postMessage({
-                [kID]: id,
-                result: undefined,
-                error: (ex as Error) ?? new Error('Unknown error'),
-            } satisfies WorkerResponse);
-        }
-    });
+    onMessage(async (msg) => handleMessage(worker, msg));
 }
 let exposed = false;
 /** Expose functions from worker */

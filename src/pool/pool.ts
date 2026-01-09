@@ -28,6 +28,7 @@ async function callWorker(
             const arg = args[i];
             if (!ArrayBuffer.isView(arg) || arg.byteLength + MAX_COPY_OVERHEAD >= arg.buffer.byteLength) continue;
 
+            // Make a slice of the underlying ArrayBuffer to avoid copying unused data
             // WORKAROUND: Avoid OOM of chrome when copying large buffers
             const buffer = arg.buffer.slice(arg.byteOffset, arg.byteOffset + arg.byteLength);
             args[i] = new (arg.constructor as new (buffer: ArrayBufferLike) => typeof arg)(buffer);
