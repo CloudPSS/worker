@@ -1,12 +1,7 @@
 import { IS_WORKER_THREAD, onMessage, postMessage } from '@cloudpss/worker/ponyfill';
-import {
-    isWorkerMessage,
-    kID,
-    type WorkerInitializationMessage,
-    type WorkerRequest,
-    type WorkerResponse,
-} from './message.js';
+import { isWorkerMessage, kID, type WorkerRequest, type WorkerResponse } from './message.js';
 import type { WorkerFunction, WorkerInterface } from './interfaces.js';
+import { notifyReady } from './ready.js';
 
 /** Start listening for messages */
 async function exposeImpl<T extends Record<string, WorkerFunction>>(
@@ -67,22 +62,6 @@ async function exposeImpl<T extends Record<string, WorkerFunction>>(
         }
     });
 }
-
-/** Low level API, notify main thread that worker is ready */
-export function notifyReady(err?: Error): void {
-    if (!IS_WORKER_THREAD) {
-        throw new Error('notifyReady can only be called inside worker thread');
-    }
-    setTimeout(
-        () =>
-            postMessage({
-                [kID]: -1,
-                error: err ?? undefined,
-            } satisfies WorkerInitializationMessage),
-        1,
-    );
-}
-
 let exposed = false;
 /** Expose functions from worker */
 export function expose<T extends Record<string, WorkerFunction>>(

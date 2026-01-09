@@ -1,14 +1,9 @@
-import { HARDWARE_CONCURRENCY, Worker as WorkerPolyfill } from '@cloudpss/worker/ponyfill';
-import {
-    isWorkerMessage,
-    kID,
-    type WorkerInitializationMessage,
-    type WorkerRequest,
-    type WorkerResponse,
-} from './message.js';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { notifyReady } from './worker.js';
+import { HARDWARE_CONCURRENCY } from '@cloudpss/worker/ponyfill';
+import { isWorkerMessage, kID, type WorkerRequest, type WorkerResponse } from './message.js';
 import type { WorkerInterface, WorkerMethod, WorkerMethods } from './interfaces.js';
+import { createWorkerFactory, type WorkerSource } from './factory.js';
+import { nextId } from './id.js';
+import { waitForWorkerReady } from './ready.js';
 
 const MAX_COPY_OVERHEAD = 1024 * 16; // 16KB
 
@@ -23,7 +18,7 @@ export interface WorkerPoolOptions {
     maxWorkers?: number;
     /**
      * Minimum number of idle workers to keep
-     * @default maxWorkers >= 8 ? 2 : 1
+     * @default 1
      */
     minIdleWorkers?: number;
     /**
@@ -43,14 +38,6 @@ export interface WorkerPoolOptions {
     creationDelay?: number;
 }
 
-let _id = 1;
-/** Acquire next sequence id */
-function nextId(): number {
-    const id = _id;
-    _id++;
-    if (_id >= 0x7fff_ffff) _id = 1;
-    return id;
-}
 /** Call to a specific worker */
 async function callWorker(
     worker: Worker,
@@ -120,77 +107,12 @@ export type TaggedWorker<T extends WorkerInterface | null = WorkerInterface | nu
     };
 };
 
-/** Low level API, wait for a worker to become available, i.e., call {@link notifyReady} method */
-export async function waitForWorkerReady(worker: Worker, timeout = 30000): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        const onMessage = (ev: MessageEvent<WorkerInitializationMessage>): void => {
-            if (!isWorkerMessage(ev.data) || ev.data[kID] !== -1) return;
-            cleanup();
-            if (ev.data.error !== undefined) {
-                reject(ev.data.error);
-            } else {
-                resolve();
-            }
-        };
-        const onError = (ev: ErrorEvent): void => {
-            cleanup();
-            reject(new Error(`Worker initialization error: ${ev.message}`, { cause: ev.error }));
-        };
-        const onTimeout = (): void => {
-            cleanup();
-            reject(new Error(`Worker initialization timed out after ${timeout} ms`));
-        };
-        const cleanup = (): void => {
-            clearTimeout(timeoutId);
-            worker.removeEventListener('message', onMessage);
-            worker.removeEventListener('error', onError);
-        };
-        const timeoutId = setTimeout(onTimeout, timeout);
-        worker.addEventListener('message', onMessage);
-        worker.addEventListener('error', onError);
-    });
-}
-
-/** Source of a worker */
-type WorkerSource =
-    // Factory function
-    | (() => Worker | WorkerPolyfill | PromiseLike<Worker | WorkerPolyfill>)
-    // URL string
-    | string
-    | URL
-    // Source code
-    | (() => string | Blob | PromiseLike<string | Blob>);
-
-/** Create a worker from url */
-function createWorkerFromUrl(url: string | URL, name: string): Worker {
-    const urlStr = typeof url == 'string' ? url : url.href;
-    return new WorkerPolyfill(urlStr, { name }) as Worker;
-}
-
-/** Create a worker from source code */
-async function createWorkerFromSource(source: string | Blob, name: string): Promise<Worker> {
-    if (typeof Buffer == 'function') {
-        const src = typeof source == 'string' ? source : await source.text();
-        const base64 = Buffer.from(src, 'utf8').toString('base64');
-        const dataUrl = `data:text/javascript;base64,${base64}`;
-        return createWorkerFromUrl(dataUrl, name);
-    } else {
-        const blob = typeof source == 'string' ? new Blob([source], { type: 'application/javascript' }) : source;
-        const url = URL.createObjectURL(blob);
-        try {
-            return createWorkerFromUrl(url, name);
-        } finally {
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }
-    }
-}
-
 /** Worker pool */
 export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements Disposable {
     constructor(source: WorkerSource, options?: WorkerPoolOptions) {
         const name = options?.name ?? 'worker-pool';
         const maxWorkers = options?.maxWorkers ?? Math.max(HARDWARE_CONCURRENCY - 1, 1);
-        let minIdleWorkers = options?.minIdleWorkers ?? (maxWorkers >= 8 ? 2 : 1);
+        let minIdleWorkers = options?.minIdleWorkers ?? 1;
         if (minIdleWorkers > maxWorkers) minIdleWorkers = maxWorkers;
         const idleTimeout = options?.idleTimeout ?? 5000;
         const initTimeout = options?.initTimeout ?? 30000;
@@ -221,28 +143,10 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
             creationDelay,
         });
         this.tag = Symbol(`@cloudpss/worker:pool:${name}`);
-
-        if (typeof source == 'function') {
-            this.factory = async () => {
-                const result = await source();
-                if (!result) {
-                    throw new Error(`Worker factory of ${name} returned empty result`);
-                }
-                if (
-                    typeof result == 'string' ||
-                    (typeof (result as Blob).size == 'number' && typeof (result as Blob).type == 'string')
-                ) {
-                    return await createWorkerFromSource(result as string | Blob, name);
-                } else {
-                    return result as Worker;
-                }
-            };
-        } else {
-            this.factory = () => createWorkerFromUrl(source, name);
-        }
+        this.factory = createWorkerFactory(source, { name });
     }
     readonly options: Readonly<Required<WorkerPoolOptions>>;
-    private readonly factory: () => Worker | Promise<Worker>;
+    private readonly factory;
     private readonly tag;
 
     private readonly initializingWorkers = new Set<Promise<TaggedWorker<T>>>();
@@ -321,25 +225,13 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
         return null;
     }
 
-    /** Get or create an idle worker */
-    private async getWorker(): Promise<TaggedWorker<T> | null> {
-        // try to find an idle worker
-        {
-            const idle = this.findIdleWorker();
-            if (idle != null) return idle;
+    /** Create a new worker if possible */
+    private createWorker(): Promise<TaggedWorker<T>> | null {
+        if (this.workers.size + this.initializingWorkers.size >= this.options.maxWorkers) {
+            return null;
         }
-        const currentTotal = this.workers.size + this.initializingWorkers.size;
-        if (currentTotal > 0 && currentTotal >= this.options.minIdleWorkers) {
-            // wait for creation delay
-            await new Promise((resolve) => setTimeout(resolve, this.options.creationDelay));
-            // try to find an idle worker again
-            {
-                const idle = this.findIdleWorker();
-                if (idle != null) return idle;
-            }
-        }
-        // create a new worker if possible
-        if (this.workers.size + this.initializingWorkers.size < this.options.maxWorkers) {
+
+        return (async () => {
             const task = this.initWorker({ tag: this.tag, busy: true });
             this.initializingWorkers.add(task);
             let worker: TaggedWorker<T>;
@@ -350,16 +242,29 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
             }
             this.workers.add(worker);
             return worker;
-        }
-        return null;
+        })();
     }
 
     /** Get or wait for an idle worker */
     async borrowWorker(): Promise<TaggedWorker<T>> {
-        const worker = await this.getWorker();
-        if (worker != null) {
-            return worker;
+        // try to find an idle worker
+        const idle = this.findIdleWorker();
+        if (idle != null) return idle;
+
+        // check if we need to wait before creating a new worker
+        const currentTotal = this.workers.size + this.initializingWorkers.size;
+        if (currentTotal > 0 && currentTotal >= this.options.minIdleWorkers) {
+            // wait for creation delay
+            await new Promise((resolve) => setTimeout(resolve, this.options.creationDelay));
+            // try to find an idle worker again
+            const idle = this.findIdleWorker();
+            if (idle != null) return idle;
         }
+
+        // create a new worker if possible
+        const created = this.createWorker();
+        if (created != null) return await created;
+
         // wait for an idle worker
         return await new Promise((resolve) => {
             this.pendingBorrow.push(resolve);
@@ -373,12 +278,18 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
             .then(async () => {
                 while (this.pendingBorrow.length > 0) {
                     const pending = this.pendingBorrow.shift()!;
-                    const idle = await this.getWorker();
-                    if (idle == null) {
-                        this.pendingBorrow.unshift(pending);
-                        break;
+                    const existingIdle = this.findIdleWorker();
+                    if (existingIdle != null) {
+                        pending(existingIdle);
+                        continue;
                     }
-                    pending(idle);
+                    const created = this.createWorker();
+                    if (created != null) {
+                        pending(await created);
+                        continue;
+                    }
+                    this.pendingBorrow.unshift(pending);
+                    break;
                 }
             })
             .catch((err) => {
