@@ -10,8 +10,8 @@ export function onMessage(callback: (value: unknown) => unknown): void {
 }
 
 /** post message */
-export function postMessage(value: unknown, transfer?: Transferable[]): void {
-    self.postMessage(value, transfer!);
+export function postMessage(value: unknown, transfer?: readonly Transferable[]): void {
+    self.postMessage(value, transfer as Transferable[]);
 }
 
 export const IS_WORKER_THREAD =

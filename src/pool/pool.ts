@@ -75,7 +75,7 @@ async function callWorker(
     });
 }
 
-const kInfo = Symbol('@cloudpss/worker:worker-info');
+const kInfo: unique symbol = Symbol('@cloudpss/worker:worker-info');
 /** Worker information */
 interface WorkerInfo<T extends WorkerPool> {
     /** Unique tag of the worker pool */

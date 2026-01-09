@@ -1,6 +1,6 @@
 import { IS_WORKER_THREAD, onMessage, postMessage } from '@cloudpss/worker/ponyfill';
 import { isWorkerMessage, kID, type WorkerRequest, type WorkerResponse } from './message.js';
-import type { MaybeFactory, WorkerFunction, WorkerInterface } from './interfaces.js';
+import { isWorkerResult, type MaybeFactory, type WorkerFunction, type WorkerInterface } from './interfaces.js';
 import { notifyReady } from './ready.js';
 
 /** Message handler */
@@ -20,13 +20,7 @@ async function handleMessage<T extends Record<string, WorkerFunction>>(worker: T
             throw new TypeError(`Method not found: ${method}`);
         }
         const result: unknown = await Reflect.apply(fn, worker, args);
-        if (
-            result &&
-            typeof result == 'object' &&
-            'result' in result &&
-            'transfer' in result &&
-            Array.isArray(result.transfer)
-        ) {
+        if (isWorkerResult(result)) {
             postMessage(
                 {
                     [kID]: id,

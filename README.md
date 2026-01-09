@@ -150,7 +150,9 @@ pool.destroy();
     - Aborts all pending work, terminates all workers, and frees resources.
 
 - `type WorkerFunction`
-  - Signature of functions that can be exposed from a worker. May return a value, a `Promise`, or an object `{ result, transfer }` to control transferable objects.
+  - Signature of functions that can be exposed from a worker. May return a value, a `Promise`, or a `WorkerResult` to control transferable objects.
+- `function WorkerResult<R>(result: R, transfer: Transferable[]): WorkerResult<R>`
+  - Helper to create a `WorkerResult` object that wraps a result and a list of transferable objects.
 - `type WorkerInterface<T>`
   - Maps a plain object of `WorkerFunction`s to a callable TypeScript interface used as the generic parameter of `WorkerPool`.
 - `type WorkerMethods<T>` / `type WorkerMethod<T, M>`

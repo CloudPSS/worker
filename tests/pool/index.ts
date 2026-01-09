@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
 import ref from '@napi-ffi/ref-napi';
-import '../dist/pool/interfaces.js';
-import { WorkerPool, type WorkerInterface } from '../dist/pool/index.js';
-import '../dist/polyfill.js';
+import '../../dist/pool/interfaces.js';
+import { WorkerPool, type WorkerResult, type WorkerInterface } from '../../dist/pool/index.js';
+import '../../dist/polyfill.js';
 
 const WORKER_SOURCE = /* js */ `
-import { expose } from ${JSON.stringify(import.meta.resolve('@cloudpss/worker/pool'))};
+import { expose, WorkerResult } from ${JSON.stringify(import.meta.resolve('@cloudpss/worker/pool'))};
 
 expose({
     sleep(ms, data) {
@@ -19,7 +19,7 @@ expose({
         throw e;
     },
     transfer(data) {
-        return { result: data, transfer: [data.buffer] };
+        return WorkerResult(data, [data.buffer]);
     }
 });
 `;
@@ -28,7 +28,7 @@ type WorkerAPI = {
     sleep<T = void>(ms: number, data?: T): Promise<T>;
     echo<T>(data: T): T;
     error(msg: unknown): never;
-    transfer(data: Uint8Array<ArrayBuffer>): { result: Uint8Array<ArrayBuffer>; transfer: [ArrayBuffer] };
+    transfer(data: Uint8Array<ArrayBuffer>): WorkerResult<Uint8Array<ArrayBuffer>>;
 };
 const POOL = new WorkerPool<WorkerInterface<WorkerAPI>>(() => WORKER_SOURCE);
 

@@ -1,6 +1,6 @@
 import { TAG, WORKER_URL, type WorkerData } from '#node-worker';
 import os from 'node:os';
-import { Worker as NodeWorker, type Transferable, parentPort } from 'node:worker_threads';
+import { Worker as NodeWorker, type Transferable as NodeTransferable, parentPort } from 'node:worker_threads';
 
 const kWorker = Symbol.for('@cloudpss/worker:worker');
 /** Worker polyfill */
@@ -57,7 +57,7 @@ export class Worker extends EventTarget implements AbstractWorker, MessageEventT
         } else if (transfer.transfer) {
             t = transfer.transfer;
         }
-        this[kWorker].postMessage(data, t as readonly Transferable[]);
+        this[kWorker].postMessage(data, t as readonly NodeTransferable[]);
     }
     /** @inheritdoc */
     terminate(): void {
@@ -71,8 +71,8 @@ export function onMessage(callback: (value: unknown) => unknown): void {
 }
 
 /** post message */
-export function postMessage(value: unknown, transfer?: Transferable[]): void {
-    parentPort!.postMessage(value, transfer ?? []);
+export function postMessage(value: unknown, transfer?: readonly Transferable[]): void {
+    parentPort!.postMessage(value, transfer as NodeTransferable[]);
 }
 
 export const IS_WORKER_THREAD = parentPort != null;
