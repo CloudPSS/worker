@@ -1,6 +1,6 @@
-import { TAG, WORKER_URL, type WorkerData } from '#node-worker';
 import os from 'node:os';
 import { Worker as NodeWorker, type Transferable as NodeTransferable, parentPort } from 'node:worker_threads';
+import { TAG, WORKER_URL, type WorkerData } from '#node-worker';
 
 const kWorker = Symbol.for('@cloudpss/worker:worker');
 /** Worker polyfill */
@@ -49,12 +49,10 @@ export class Worker extends EventTarget implements AbstractWorker, MessageEventT
     onerror: ((this: AbstractWorker, ev: ErrorEvent) => unknown) | null = null;
     /** @inheritdoc */
     postMessage(data: unknown, transfer?: Transferable[] | { transfer?: Transferable[] }): void {
-        let t: Transferable[] = [];
-        if (!transfer) {
-            //
-        } else if (Array.isArray(transfer)) {
+        let t: Transferable[] | undefined;
+        if (Array.isArray(transfer)) {
             t = transfer;
-        } else if (transfer.transfer) {
+        } else if (Array.isArray(transfer?.transfer)) {
             t = transfer.transfer;
         }
         this[kWorker].postMessage(data, t as readonly NodeTransferable[]);

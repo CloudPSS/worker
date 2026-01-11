@@ -50,6 +50,9 @@ export function createWorkerPoolOptions(options: WorkerPoolOptions | undefined):
     if (minIdleWorkers < 0 || !Number.isFinite(minIdleWorkers)) {
         minIdleWorkers = 0;
     }
+    if (minIdleWorkers > maxWorkers) {
+        minIdleWorkers = maxWorkers;
+    }
     if (!Number.isFinite(idleTimeout) || idleTimeout < 0) {
         idleTimeout = 0;
     }
