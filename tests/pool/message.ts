@@ -6,6 +6,7 @@ describe('WorkerMessage', () => {
         expect(isWorkerMessage({ [kID]: -1 })).toBe(true);
         expect(isWorkerMessage({})).toBe(false);
         expect(isWorkerMessage({ __proto__: null })).toBe(false);
+        expect(isWorkerMessage({ __proto__: null, [kID]: 1 })).toBe(true);
         expect(isWorkerMessage(null)).toBe(false);
         expect(isWorkerMessage(1)).toBe(false);
         expect(isWorkerMessage({ id: 1 })).toBe(false);

@@ -135,7 +135,7 @@ describe('node polyfill', () => {
         jest.spyOn(worker[kWorker], 'postMessage');
 
         worker.postMessage('test');
-        expect(worker[kWorker].postMessage).toHaveBeenCalledWith('test', []);
+        expect(worker[kWorker].postMessage).toHaveBeenCalledWith('test', undefined);
 
         worker.postMessage('test', [new ArrayBuffer(0)]);
         expect(worker[kWorker].postMessage).toHaveBeenCalledWith('test', [expect.any(ArrayBuffer)]);
