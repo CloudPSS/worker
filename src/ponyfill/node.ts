@@ -65,12 +65,12 @@ export class Worker extends EventTarget implements AbstractWorker, MessageEventT
 
 /** add message callback */
 export function onMessage(callback: (value: unknown) => unknown): void {
-    parentPort!.on('message', callback);
+    parentPort?.on('message', callback);
 }
 
 /** post message */
 export function postMessage(value: unknown, transfer?: readonly Transferable[]): void {
-    parentPort!.postMessage(value, transfer as NodeTransferable[]);
+    parentPort?.postMessage(value, transfer as NodeTransferable[]);
 }
 
 export const IS_WORKER_THREAD = parentPort != null;

@@ -36,11 +36,7 @@ async function callWorker(
         }
     }
     return new Promise((resolve, reject) => {
-        if (transfer?.length) {
-            worker.postMessage(request, { transfer });
-        } else {
-            worker.postMessage(request);
-        }
+        worker.postMessage(request, transfer);
 
         const onMessage = (ev: MessageEvent<WorkerResponse>): void => {
             if (!isWorkerMessage(ev.data)) {
@@ -62,7 +58,7 @@ async function callWorker(
         };
         const onAbort = (): void => {
             cleanup();
-            reject((signal?.reason as Error) ?? new Error('Operation aborted'));
+            reject((signal?.reason as Error | null) ?? new Error('Operation aborted'));
         };
         const cleanup = (): void => {
             worker.removeEventListener('message', onMessage);
@@ -214,7 +210,9 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
                 worker.terminate();
                 controller.signal.throwIfAborted();
             }
-            controller.signal.addEventListener('abort', () => worker.terminate());
+            controller.signal.addEventListener('abort', () => {
+                worker.terminate();
+            });
             this.workers.add(worker);
             return worker;
         })();
@@ -267,7 +265,7 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
                     break;
                 }
             })
-            .catch((err) => {
+            .catch((err: unknown) => {
                 // eslint-disable-next-line no-console
                 console.error(`${this.options.name} handlePendingBorrow error`, err);
             });

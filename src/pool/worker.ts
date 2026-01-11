@@ -38,7 +38,7 @@ async function handleMessage<T extends Record<string, WorkerFunction>>(worker: T
         postMessage({
             [kID]: id,
             result: undefined,
-            error: (ex as Error) ?? new Error('Unknown error'),
+            error: (ex as Error | null) ?? new Error('Unknown error'),
         } satisfies WorkerResponse);
     }
 }

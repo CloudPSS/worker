@@ -7,11 +7,14 @@ const kWorkerResult: unique symbol = Symbol.for('@cloudpss/worker:worker-result'
 /**
  * Result of a worker function call with transferable objects
  */
-export type WorkerResult<R> = {
+export interface WorkerResult<R> {
+    /** Marker to identify WorkerResult */
     readonly [kWorkerResult]: true;
+    /** Result value */
     readonly result: R;
+    /** Transferable objects */
     readonly transfer: readonly Transferable[];
-};
+}
 
 /**
  * Create a {@link WorkerFunctionResult}

@@ -8,7 +8,7 @@ async function notifyReadyImpl(ready?: Promise<unknown>): Promise<void> {
         await ready;
         message = { [kID]: -1 };
     } catch (err) {
-        const error = (err as Error) ?? new Error('Unknown error during worker initialization');
+        const error = (err as Error | null) ?? new Error('Unknown error during worker initialization');
         message = { [kID]: -1, error };
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 1));
