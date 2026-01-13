@@ -7,7 +7,7 @@ import {
     type WorkerFunction,
     type WorkerInterface,
 } from './interfaces.js';
-import { notifyReady } from './ready.js';
+import { notifyReady } from './ready-notify.js';
 
 /** Message handler */
 async function handleMessage<T extends Record<string, WorkerFunction>>(worker: T, msg: unknown): Promise<void> {

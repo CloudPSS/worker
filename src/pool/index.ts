@@ -1,6 +1,7 @@
 export { type TaggedWorker, WorkerPool } from './pool.js';
 export { expose } from './worker.js';
-export { waitForWorkerReady, notifyReady } from './ready.js';
+export { notifyReady } from './ready-notify.js';
+export { waitForWorkerReady } from './ready-wait.js';
 export {
     type WorkerFunction,
     type WorkerMethod,

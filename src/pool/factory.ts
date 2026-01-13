@@ -1,5 +1,6 @@
 import type { MaybeAsync, MaybeFactory } from './interfaces.js';
 import { Worker as WorkerPolyfill } from '@cloudpss/worker/ponyfill';
+import { isBlob, isURL } from './utils.js';
 
 /** Source of a worker */
 export type WorkerSource =
@@ -9,20 +10,6 @@ export type WorkerSource =
     | MaybeFactory<URL>
     // Source code
     | MaybeFactory<string | Blob>;
-
-/** Check if the input is a blob */
-function isBlob(input: unknown): input is Blob {
-    if (typeof input != 'object' || input == null) {
-        return false;
-    }
-    const blob = input as Blob;
-    return typeof blob.size == 'number' && typeof blob.type == 'string' && typeof blob.text == 'function';
-}
-
-/** Check if the input is an URL */
-function isURL(input: unknown): input is URL {
-    return typeof input == 'object' && input != null && typeof (input as URL).href == 'string';
-}
 
 /** Worker factory */
 type WorkerFactory = () => MaybeAsync<Worker>;

@@ -1,16 +1,18 @@
 import os from 'node:os';
 import { Worker as NodeWorker, type Transferable as NodeTransferable, parentPort } from 'node:worker_threads';
-import { TAG, WORKER_URL, type WorkerData } from '#node-worker';
 
+const workerSource = /* js */ `import(process.getBuiltinModule('node:worker_threads').workerData);`;
+const workerUrl = new URL(`data:text/javascript,${encodeURIComponent(workerSource)}`);
 const kWorker = Symbol.for('@cloudpss/worker:worker');
+
 /** Worker polyfill */
 class WorkerPonyfill extends EventTarget implements Worker, AbstractWorker, MessageEventTarget<Worker> {
     constructor(scriptURL: string | URL, options?: WorkerOptions) {
         super();
         if (typeof scriptURL != 'string') scriptURL = String(scriptURL);
-        const worker = new NodeWorker(new URL(WORKER_URL), {
+        const worker = new NodeWorker(workerUrl, {
             name: options?.name,
-            workerData: { tag: TAG, url: scriptURL } satisfies WorkerData,
+            workerData: scriptURL,
         });
         worker.on('message', (data: unknown) => {
             const ev = new MessageEvent('message', { data });

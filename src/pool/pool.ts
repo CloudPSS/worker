@@ -1,80 +1,9 @@
-import { isWorkerMessage, kID, type WorkerRequest, type WorkerResponse } from './message.js';
 import type { MaybeAsync, WorkerInterface, WorkerMethod, WorkerMethods } from './interfaces.js';
 import { createWorkerFactory, type WorkerSource } from './factory.js';
-import { nextId } from './id.js';
-import { waitForWorkerReady } from './ready.js';
+import { waitForWorkerReady } from './ready-wait.js';
 import { createWorkerPoolOptions, type WorkerPoolOptions } from './options.js';
-
-const MAX_COPY_OVERHEAD = 1024 * 16; // 16KB
-
-/** Create error from ErrorEvent */
-function createErrorFromEvent(ev: ErrorEvent): Error {
-    return new Error(`Worker error: ${ev.message}`, { cause: ev.error });
-}
-
-/** Call to a specific worker */
-async function callWorker(
-    worker: Worker,
-    signal: AbortSignal | null,
-    method: WorkerRequest['method'],
-    args: WorkerRequest['args'],
-    transfer?: Transferable[],
-): Promise<unknown> {
-    signal?.throwIfAborted();
-    const id = nextId();
-    const request: WorkerRequest = {
-        [kID]: id,
-        method,
-        args,
-    };
-    if (transfer == null) {
-        transfer = [];
-        for (let i = 0; i < args.length; i++) {
-            const arg = args[i];
-            if (!ArrayBuffer.isView(arg) || arg.byteLength + MAX_COPY_OVERHEAD >= arg.buffer.byteLength) continue;
-
-            // Make a slice of the underlying ArrayBuffer to avoid copying unused data
-            // WORKAROUND: Avoid OOM of chrome when copying large buffers
-            const buffer = arg.buffer.slice(arg.byteOffset, arg.byteOffset + arg.byteLength);
-            args[i] = new (arg.constructor as new (buffer: ArrayBufferLike) => typeof arg)(buffer);
-            transfer.push(buffer);
-        }
-    }
-    return new Promise((resolve, reject) => {
-        worker.postMessage(request, transfer);
-
-        const onMessage = (ev: MessageEvent<WorkerResponse>): void => {
-            if (!isWorkerMessage(ev.data)) {
-                // ignore invalid message
-                return;
-            }
-            const { [kID]: resId, result, error } = ev.data;
-            if (resId !== id) return;
-            cleanup();
-            if (error != null) {
-                reject(error);
-            } else {
-                resolve(result);
-            }
-        };
-        const onError = (ev: ErrorEvent): void => {
-            cleanup();
-            reject(createErrorFromEvent(ev));
-        };
-        const onAbort = (): void => {
-            cleanup();
-            reject((signal?.reason as Error | null) ?? new Error('Operation aborted'));
-        };
-        const cleanup = (): void => {
-            worker.removeEventListener('message', onMessage);
-            worker.removeEventListener('error', onError);
-            signal?.removeEventListener('abort', onAbort);
-        };
-        worker.addEventListener('message', onMessage);
-        worker.addEventListener('error', onError);
-        signal?.addEventListener('abort', onAbort);
-    });
-}
+import { createErrorFromEvent } from './utils.js';
+import { callWorker } from './call.js';
 
 const kInfo: unique symbol = Symbol('@cloudpss/worker:worker-info');
 /** Worker information */
