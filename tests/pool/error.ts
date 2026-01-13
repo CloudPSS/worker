@@ -59,7 +59,7 @@ describe('should work with complex worker', () => {
             import { expose } from ${importUrl('@cloudpss/worker/pool')};
             setTimeout(() => {
                 throw new Error('unhandled error foo');
-            }, 10);
+            }, 50);
             expose({
                 sleep(ms, data) {
                     return new Promise((resolve) => setTimeout(() => resolve(data), ms));
@@ -73,7 +73,7 @@ describe('should work with complex worker', () => {
             expect(result).toBe('test');
         }
         expect(pool.status()).toEqual({ idle: 1, busy: 0, initializing: 0, total: 1 });
-        await setTimeout(50);
+        await setTimeout(100);
         expect(pool.status()).toEqual({ idle: 0, busy: 0, initializing: 0, total: 0 });
         {
             const result = () => pool.call('sleep', [100, 'test']);
