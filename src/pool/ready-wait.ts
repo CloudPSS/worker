@@ -24,7 +24,7 @@ export async function waitForWorkerReady(worker: Worker, timeout = 30000, signal
         };
         const onAbort = (): void => {
             cleanup();
-            reject((signal?.reason as Error) ?? new Error('Worker initialization aborted'));
+            reject((signal?.reason as Error | null) ?? new Error('Worker initialization aborted'));
         };
         const cleanup = (): void => {
             if (timeoutId) clearTimeout(timeoutId);

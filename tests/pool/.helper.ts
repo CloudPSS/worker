@@ -1,6 +1,6 @@
 import '../../dist/pool/interfaces.js';
 import '../../dist/polyfill.js';
-import { WorkerPool, type WorkerResult, type WorkerInterface } from '../../dist/pool/index.js';
+import type { WorkerResult } from '../../dist/pool/index.js';
 
 export const importUrl = (u: string): `"${string}"` => JSON.stringify(import.meta.resolve(u)) as `"${string}"`;
 export const WORKER_SOURCE = /* js */ `

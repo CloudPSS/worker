@@ -9,5 +9,5 @@
     "isolatedModules": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["./**/*.ts", "./**/*.js", "./.*.js", "./.*.ts"]
+  "include": ["./**/*.ts", "./**/*.js", "./**/.*.js", "./**/.*.ts"]
 }

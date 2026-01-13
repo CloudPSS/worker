@@ -35,6 +35,25 @@ export interface WorkerPoolOptions {
     workerOptions?: WorkerOptions;
 }
 
+/** Clamp value in range */
+function clamp(value: number, min: number, max: number): number {
+    if (Number.isNaN(value) || value < min) {
+        return min;
+    }
+    if (value > max) {
+        return max;
+    }
+    return value;
+}
+
+/** Clamp value in range */
+function clampMin(value: number, min: number): number {
+    if (!Number.isFinite(value) || value < min) {
+        return min;
+    }
+    return value;
+}
+
 /** Create options */
 export function createWorkerPoolOptions(options: WorkerPoolOptions | undefined): Required<WorkerPoolOptions> {
     const name = String(options?.name ?? 'worker-pool');
@@ -44,28 +63,14 @@ export function createWorkerPoolOptions(options: WorkerPoolOptions | undefined):
     let initTimeout = Number(options?.initTimeout ?? 30000);
     let creationDelay = Number(options?.creationDelay ?? 0);
 
-    if (maxWorkers <= 0 || !Number.isFinite(maxWorkers)) {
-        maxWorkers = 1;
-    }
-    if (minIdleWorkers < 0 || !Number.isFinite(minIdleWorkers)) {
-        minIdleWorkers = 0;
-    }
-    if (minIdleWorkers > maxWorkers) {
-        minIdleWorkers = maxWorkers;
-    }
-    if (!Number.isFinite(idleTimeout) || idleTimeout < 0) {
-        idleTimeout = 0;
-    }
-    if (!Number.isFinite(initTimeout) || initTimeout < 0) {
-        initTimeout = 0;
-    }
-    if (!Number.isFinite(creationDelay) || creationDelay < 0) {
-        creationDelay = 0;
-    }
+    maxWorkers = clampMin(maxWorkers, 1);
+    minIdleWorkers = clamp(minIdleWorkers, 0, maxWorkers);
+    idleTimeout = clampMin(idleTimeout, 0);
+    initTimeout = clampMin(initTimeout, 0);
+    creationDelay = clampMin(creationDelay, 0);
+
     const workerOptions = { ...options?.workerOptions };
-    if (!workerOptions.name) {
-        workerOptions.name = name;
-    }
+    workerOptions.name ||= name;
     return {
         name,
         maxWorkers,

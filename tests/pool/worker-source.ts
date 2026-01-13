@@ -1,5 +1,6 @@
 import { WorkerPool, type WorkerInterface } from '../../dist/pool/index.js';
 import { type WorkerAPI, WORKER_SOURCE } from './.helper.ts';
+import WorkerFileImportUrl from './worker-import/.index.js';
 
 describe('should accept different worker sources', () => {
     const dataUrl = new URL(`data:text/javascript,${encodeURIComponent(WORKER_SOURCE)}`);
@@ -34,11 +35,6 @@ describe('should accept different worker sources', () => {
         await checkPool(pool);
     });
 
-    it('factory returning blob', async () => {
-        const pool = new WorkerPool<WorkerInterface<WorkerAPI>>(() => blob);
-        await checkPool(pool);
-    });
-
     it('value of Worker', () => {
         expect(
             // @ts-expect-error testing Worker value
@@ -58,18 +54,27 @@ describe('should accept different worker sources', () => {
         await checkPool(pool);
     });
 
-    it('factory returning data URL', async () => {
-        const pool = new WorkerPool<WorkerInterface<WorkerAPI>>(() => dataUrl);
-        await checkPool(pool);
-    });
-
     it('value of blob URL', async () => {
         const pool = new WorkerPool<WorkerInterface<WorkerAPI>>(blobUrl);
         await checkPool(pool);
     });
 
-    it('factory returning blob URL', async () => {
-        const pool = new WorkerPool<WorkerInterface<WorkerAPI>>(() => blobUrl);
+    it('value of file URL', async () => {
+        const pool = new WorkerPool<WorkerInterface<WorkerAPI>>(
+            new URL(import.meta.resolve('./worker-import/.worker.js')),
+        );
+        await checkPool(pool);
+    });
+
+    it('value of file URL with #hash', async () => {
+        const url = new URL(import.meta.resolve('./worker-import/.worker.js'));
+        url.hash = '#invalid-path';
+        const pool = new WorkerPool<WorkerInterface<WorkerAPI>>(url);
+        await checkPool(pool);
+    });
+
+    it('value of file URL with #import', async () => {
+        const pool = new WorkerPool<WorkerInterface<WorkerAPI>>(WorkerFileImportUrl);
         await checkPool(pool);
     });
 

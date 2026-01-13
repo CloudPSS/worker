@@ -66,12 +66,20 @@ describe('node polyfill', () => {
         const onmessage = jest.fn();
         const onmessageerror = jest.fn();
         const onerror = jest.fn();
+        expect(worker.onerror).toBeNull();
+        expect(worker.onmessage).toBeNull();
+        expect(worker.onmessageerror).toBeNull();
+
         // eslint-disable-next-line unicorn/prefer-add-event-listener
         worker.onmessage = onmessage;
         // eslint-disable-next-line unicorn/prefer-add-event-listener
         worker.onmessageerror = onmessageerror;
         // eslint-disable-next-line unicorn/prefer-add-event-listener
         worker.onerror = onerror;
+
+        expect(worker.onmessage).toBe(onmessage);
+        expect(worker.onmessageerror).toBe(onmessageerror);
+        expect(worker.onerror).toBe(onerror);
 
         worker[kWorker].emit('message', 'message_test');
         worker[kWorker].emit('messageerror', 'messageerror_test');
@@ -102,6 +110,18 @@ describe('node polyfill', () => {
         worker.onmessageerror = null;
         // eslint-disable-next-line unicorn/prefer-add-event-listener
         worker.onerror = null;
+
+        expect(worker.onerror).toBeNull();
+        expect(worker.onmessage).toBeNull();
+        expect(worker.onmessageerror).toBeNull();
+
+        worker[kWorker].emit('message', 'message_test');
+        worker[kWorker].emit('messageerror', 'messageerror_test');
+        worker[kWorker].emit('error', new Error('error'));
+
+        expect(onmessage).toHaveBeenCalledTimes(1);
+        expect(onmessageerror).toHaveBeenCalledTimes(1);
+        expect(onerror).toHaveBeenCalledTimes(1);
     });
 
     it('event handlers', () => {
