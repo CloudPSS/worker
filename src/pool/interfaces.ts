@@ -1,7 +1,5 @@
 /** Sync or async return value */
 export type MaybeAsync<T> = T | PromiseLike<T>;
-/** Value or factory returning a value or a Promise of a value */
-export type MaybeFactory<T> = T | (() => MaybeAsync<T>);
 
 const kWorkerResult: unique symbol = Symbol.for('@cloudpss/worker:worker-result');
 /**
@@ -49,8 +47,11 @@ export type WorkerFunction<A extends any[] = any[], R = any> = (...args: A) => M
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type WorkerFunctionReturn<W> = W extends WorkerFunction<any, infer R> ? R : never;
 
+/** Worker exposing functions of type WorkerFunction */
+export type WorkerRecord = Record<string, WorkerFunction>;
+
 /** Interface of a worker exposing functions of type WorkerFunction */
-export type WorkerInterface<T extends Record<string, WorkerFunction> = Record<string, WorkerFunction>> =
+export type WorkerInterface<T extends WorkerRecord = WorkerRecord> =
     | null
     | {
           readonly [K in keyof T & string]: (...args: Parameters<T[K]>) => WorkerFunctionReturn<T[K]>;

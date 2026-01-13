@@ -1,15 +1,18 @@
-import type { MaybeAsync, MaybeFactory } from './interfaces.js';
+import type { MaybeAsync } from './interfaces.js';
 import { Worker as WorkerPolyfill } from '@cloudpss/worker/ponyfill';
 import { isBlob, isURL } from './utils.js';
+
+/** Source code of worker */
+type WorkerSourceCode = string | Blob;
 
 /** Source of a worker */
 export type WorkerSource =
     // Factory function
-    | (() => MaybeAsync<Worker>)
+    | (() => MaybeAsync<Worker | URL | WorkerSourceCode>)
     // URL
-    | MaybeFactory<URL>
+    | URL
     // Source code
-    | MaybeFactory<string | Blob>;
+    | WorkerSourceCode;
 
 /** Worker factory */
 type WorkerFactory = () => MaybeAsync<Worker>;

@@ -1,16 +1,10 @@
 import { IS_WORKER_THREAD, onMessage, postMessage } from '@cloudpss/worker/ponyfill';
 import { isWorkerMessage, kID, type WorkerRequest, type WorkerResponse } from './message.js';
-import {
-    isWorkerResult,
-    type MaybeAsync,
-    type MaybeFactory,
-    type WorkerFunction,
-    type WorkerInterface,
-} from './interfaces.js';
+import { isWorkerResult, type MaybeAsync, type WorkerInterface, type WorkerRecord } from './interfaces.js';
 import { notifyReady } from './ready-notify.js';
 
 /** Message handler */
-async function handleMessage<T extends Record<string, WorkerFunction>>(worker: T, msg: unknown): Promise<void> {
+async function handleMessage<T extends WorkerRecord>(worker: T, msg: unknown): Promise<void> {
     if (!isWorkerMessage(msg)) {
         // ignore invalid message
         return;
@@ -50,9 +44,7 @@ async function handleMessage<T extends Record<string, WorkerFunction>>(worker: T
 }
 
 /** Start listening for messages */
-async function exposeImpl<T extends Record<string, WorkerFunction>>(
-    worker: MaybeFactory<T> | MaybeAsync<T>,
-): Promise<void> {
+async function exposeImpl<T extends WorkerRecord>(worker: (() => MaybeAsync<T>) | MaybeAsync<T>): Promise<void> {
     if (typeof worker == 'function') {
         worker = await worker();
     } else {
@@ -66,20 +58,20 @@ let exposed = false;
 // WORKAROUND: Union args are not properly inferred in some cases
 
 /** Expose functions from worker */
-export function expose<T extends Record<string, WorkerFunction>>(worker: () => PromiseLike<T>): WorkerInterface<T>;
+export function expose<const T extends WorkerRecord>(worker: () => PromiseLike<T>): WorkerInterface<T>;
 /** Expose functions from worker */
 // eslint-disable-next-line @typescript-eslint/unified-signatures
-export function expose<T extends Record<string, WorkerFunction>>(worker: () => T): WorkerInterface<T>;
+export function expose<const T extends WorkerRecord>(worker: () => T): WorkerInterface<T>;
 /** Expose functions from worker */
 // eslint-disable-next-line @typescript-eslint/unified-signatures
-export function expose<T extends Record<string, WorkerFunction>>(worker: PromiseLike<T>): WorkerInterface<T>;
+export function expose<const T extends WorkerRecord>(worker: PromiseLike<T>): WorkerInterface<T>;
 /** Expose functions from worker */
 // eslint-disable-next-line @typescript-eslint/unified-signatures
-export function expose<T extends Record<string, WorkerFunction>>(worker: T): WorkerInterface<T>;
+export function expose<const T extends WorkerRecord>(worker: T): WorkerInterface<T>;
 
 /** Expose functions from worker */
-export function expose<T extends Record<string, WorkerFunction>>(
-    worker: MaybeFactory<T> | MaybeAsync<T>,
+export function expose<const T extends WorkerRecord>(
+    worker: (() => MaybeAsync<T>) | MaybeAsync<T>,
 ): WorkerInterface<T> {
     if (!IS_WORKER_THREAD) {
         throw new Error('expose can only be called inside worker thread');
