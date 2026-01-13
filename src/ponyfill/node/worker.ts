@@ -1,4 +1,6 @@
 import { Worker as NodeWorker } from 'node:worker_threads';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 const workerSource = /* js */ `import(process.getBuiltinModule('node:worker_threads').workerData);`;
 const workerUrl = new URL(`data:text/javascript,${encodeURIComponent(workerSource)}`);
@@ -17,8 +19,8 @@ export function createNodeWorker(scriptURL: string | URL, options?: WorkerOption
         // Maybe created by `new URL('#import-path', import.meta.url)`
         try {
             const maybeImport = decodeURIComponent(scriptURL.hash.slice(1));
-            const resolved = import.meta.resolve(`#${maybeImport}`, scriptURL);
-            return new NodeWorker(new URL(resolved), options);
+            const resolved = createRequire(scriptURL).resolve(`#${maybeImport}`);
+            return new NodeWorker(new URL(pathToFileURL(resolved)), options);
         } catch {
             // ignore
         }
