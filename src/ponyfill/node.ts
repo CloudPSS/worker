@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { isNativeError } from 'node:util/types';
 import { Worker as NodeWorker, type Transferable as NodeTransferable, parentPort } from 'node:worker_threads';
 
 const workerSource = /* js */ `import(process.getBuiltinModule('node:worker_threads').workerData);`;
@@ -27,6 +28,21 @@ function createNodeWorker(scriptURL: string | URL, options?: WorkerOptions): Nod
     return new NodeWorker(scriptURL, options);
 }
 
+/** Create ErrorEvent */
+function createErrorEvent(error: unknown): ErrorEvent {
+    const ev = new Event('error', {}) as ErrorEvent;
+    const message = isNativeError(error) ? error.message : String(error);
+    Object.defineProperty(ev, 'message', {
+        value: message,
+        configurable: true,
+    });
+    Object.defineProperty(ev, 'error', {
+        value: error,
+        configurable: true,
+    });
+    return ev;
+}
+
 const kWorker = Symbol.for('@cloudpss/worker:worker');
 /** Worker polyfill */
 class WorkerPonyfill extends EventTarget implements Worker, AbstractWorker, MessageEventTarget<Worker> {
@@ -48,15 +64,7 @@ class WorkerPonyfill extends EventTarget implements Worker, AbstractWorker, Mess
             }
         });
         worker.on('error', (error) => {
-            const ev = new Event('error', {}) as ErrorEvent;
-            Object.defineProperty(ev, 'error', {
-                value: error,
-                configurable: true,
-            });
-            Object.defineProperty(ev, 'message', {
-                value: error instanceof Error ? error.message : String(error),
-                configurable: true,
-            });
+            const ev = createErrorEvent(error);
             this.dispatchEvent(ev);
             if (typeof this.onerror == 'function') {
                 this.onerror(ev);
