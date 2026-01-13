@@ -166,7 +166,7 @@ pool.destroy();
   - `creationDelay?: number` – Delay before creating a new worker when the pool is already warm. Default: `0`.
   - `workerOptions?: WorkerOptions` – Extra options passed to the underlying `Worker` constructor (e.g. `type`, `name`).
 
-- `function expose<T extends Record<string, WorkerFunction>>(worker: T | (() => T) | (() => PromiseLike<T>))`
+- `function expose<T extends Record<string, WorkerFunction>>(worker: T | PromiseLike<T> | (() => T) | (() => PromiseLike<T>))`
   - Worker-side helper that exposes an object of functions to the main thread.
   - Must be called exactly once inside a worker; it automatically sets up message handling and calls `notifyReady()`.
 - `function notifyReady(ready?: Promise<unknown>): void`
