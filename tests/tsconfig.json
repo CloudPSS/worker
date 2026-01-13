@@ -6,7 +6,8 @@
     "rootDir": "..",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "isolatedModules": true
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true
   },
   "include": ["./**/*.ts", "./**/*.js", "./.*.js", "./.*.ts"]
 }
