@@ -1,6 +1,7 @@
 import { isNativeError } from 'node:util/types';
-import type { Worker as NodeWorker, Transferable as NodeTransferable } from 'node:worker_threads';
+import type { Worker as NodeWorker } from 'node:worker_threads';
 import { createNodeWorker } from './worker.js';
+import { filterNodeTransferable } from './utils.js';
 
 /** Create ErrorEvent */
 function createErrorEvent(error: unknown): ErrorEvent {
@@ -52,13 +53,8 @@ class WorkerPonyfill extends EventTarget implements Worker, AbstractWorker, Mess
     onerror: Worker['onerror'] = null;
     /** @inheritdoc */
     postMessage(message: unknown, transfer?: Transferable[] | StructuredSerializeOptions): void {
-        let t: Transferable[] | undefined;
-        if (Array.isArray(transfer)) {
-            t = transfer;
-        } else if (Array.isArray(transfer?.transfer)) {
-            t = transfer.transfer;
-        }
-        this[kWorker].postMessage(message, t as readonly NodeTransferable[]);
+        const options = filterNodeTransferable(transfer);
+        this[kWorker].postMessage(message, options?.transfer);
     }
     /** @inheritdoc */
     terminate(): void {

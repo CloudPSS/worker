@@ -1,5 +1,6 @@
 import { availableParallelism } from 'node:os';
-import { type Transferable as NodeTransferable, parentPort } from 'node:worker_threads';
+import { parentPort } from 'node:worker_threads';
+import { filterNodeTransferable } from './node/utils.js';
 
 export { Worker } from './node/worker-polyfill.js';
 
@@ -9,8 +10,10 @@ export function onMessage(callback: (value: unknown) => unknown): void {
 }
 
 /** post message */
-export function postMessage(value: unknown, transfer?: readonly Transferable[]): void {
-    parentPort?.postMessage(value, transfer as NodeTransferable[]);
+export function postMessage(value: unknown, transfer?: readonly Transferable[] | StructuredSerializeOptions): void {
+    if (parentPort == null) return;
+    const filtered = filterNodeTransferable(transfer);
+    return parentPort.postMessage(value, filtered);
 }
 
 export const IS_WORKER_THREAD = parentPort != null;
