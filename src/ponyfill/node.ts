@@ -4,7 +4,7 @@ import { TAG, WORKER_URL, type WorkerData } from '#node-worker';
 
 const kWorker = Symbol.for('@cloudpss/worker:worker');
 /** Worker polyfill */
-export class Worker extends EventTarget implements AbstractWorker, MessageEventTarget<Worker> {
+class WorkerPonyfill extends EventTarget implements Worker, AbstractWorker, MessageEventTarget<Worker> {
     constructor(scriptURL: string | URL, options?: WorkerOptions) {
         super();
         if (typeof scriptURL != 'string') scriptURL = String(scriptURL);
@@ -44,24 +44,29 @@ export class Worker extends EventTarget implements AbstractWorker, MessageEventT
         this[kWorker] = worker;
     }
     protected readonly [kWorker]: NodeWorker;
-    onmessage: ((this: Worker, ev: MessageEvent) => unknown) | null = null;
-    onmessageerror: ((this: Worker, ev: MessageEvent) => unknown) | null = null;
-    onerror: ((this: AbstractWorker, ev: ErrorEvent) => unknown) | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onmessage: ((this: Worker, ev: MessageEvent) => any) | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onmessageerror: ((this: Worker, ev: MessageEvent) => any) | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onerror: ((this: AbstractWorker, ev: ErrorEvent) => any) | null = null;
     /** @inheritdoc */
-    postMessage(data: unknown, transfer?: Transferable[] | { transfer?: Transferable[] }): void {
+    postMessage(message: unknown, transfer?: Transferable[] | StructuredSerializeOptions): void {
         let t: Transferable[] | undefined;
         if (Array.isArray(transfer)) {
             t = transfer;
         } else if (Array.isArray(transfer?.transfer)) {
             t = transfer.transfer;
         }
-        this[kWorker].postMessage(data, t as readonly NodeTransferable[]);
+        this[kWorker].postMessage(message, t as readonly NodeTransferable[]);
     }
     /** @inheritdoc */
     terminate(): void {
         void this[kWorker].terminate();
     }
 }
+Object.defineProperty(WorkerPonyfill, 'name', { value: 'Worker' });
+export { WorkerPonyfill as Worker };
 
 /** add message callback */
 export function onMessage(callback: (value: unknown) => unknown): void {

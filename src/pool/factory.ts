@@ -4,7 +4,7 @@ import { Worker as WorkerPolyfill } from '@cloudpss/worker/ponyfill';
 /** Source of a worker */
 export type WorkerSource =
     // Factory function
-    | (() => MaybeAsync<Worker | WorkerPolyfill>)
+    | (() => MaybeAsync<Worker>)
     // URL
     | MaybeFactory<URL>
     // Source code
@@ -39,7 +39,7 @@ async function createWorkerFromUrl(url: string | URL, options: WorkerOptions): P
         }
         return await createWorkerFromSource(await blob.text(), options);
     }
-    return () => new WorkerPolyfill(urlStr, options) as Worker;
+    return () => new WorkerPolyfill(urlStr, options);
 }
 
 /** Create a worker from source code */
@@ -63,7 +63,7 @@ export function createWorkerFactory(source: WorkerSource, options: WorkerOptions
             } else if (isURL(result)) {
                 factory = await createWorkerFromUrl(result, options);
             } else if (result != null && typeof result == 'object') {
-                return result as Worker;
+                return result;
             } else {
                 throw new TypeError(`Worker factory of ${name} returned invalid result`);
             }
