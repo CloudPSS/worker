@@ -73,11 +73,8 @@ export function expose<const T extends WorkerRecord>(worker: T): WorkerInterface
 export function expose<const T extends WorkerRecord>(
     worker: (() => MaybeAsync<T>) | MaybeAsync<T>,
 ): WorkerInterface<T> {
-    if (!IS_WORKER_THREAD) {
-        throw new Error('expose can only be called inside worker thread');
-    }
-    if (exposed) {
-        throw new Error('expose can only be called once per worker');
+    if (!IS_WORKER_THREAD || exposed) {
+        return null;
     }
     exposed = true;
     notifyReady(exposeImpl(worker));
