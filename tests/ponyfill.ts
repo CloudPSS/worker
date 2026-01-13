@@ -54,6 +54,14 @@ describe('node polyfill', () => {
         worker?.terminate();
     });
 
+    it('name', () => {
+        expect(worker.constructor.name).toBe('Worker');
+    });
+
+    it('type', () => {
+        const worker: Worker = new nodePolyfill.Worker(new URL('data:text/javascript;base64,'));
+    });
+
     it('events', () => {
         const onmessage = jest.fn();
         const onmessageerror = jest.fn();

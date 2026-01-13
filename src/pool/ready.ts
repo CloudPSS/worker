@@ -26,11 +26,11 @@ export function notifyReady(ready?: Promise<unknown>): void {
 /** Low level API, wait for a worker to become available, i.e., call {@link notifyReady} method */
 export async function waitForWorkerReady(worker: Worker, timeout = 30000, signal?: AbortSignal): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-        const onMessage = (ev: MessageEvent<WorkerInitializationMessage>): void => {
-            if (!isWorkerMessage(ev.data) || ev.data[kID] !== -1) return;
+        const onMessage = ({ data }: MessageEvent<WorkerInitializationMessage>): void => {
+            if (!isWorkerMessage(data) || data[kID] !== -1) return;
             cleanup();
-            if (ev.data.error !== undefined) {
-                reject(ev.data.error);
+            if (data.error !== undefined) {
+                reject(data.error);
             } else {
                 resolve();
             }

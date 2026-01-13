@@ -7,6 +7,11 @@ import { createWorkerPoolOptions, type WorkerPoolOptions } from './options.js';
 
 const MAX_COPY_OVERHEAD = 1024 * 16; // 16KB
 
+/** Create error from ErrorEvent */
+function createErrorFromEvent(ev: ErrorEvent): Error {
+    return new Error(`Worker error: ${ev.message}`, { cause: ev.error });
+}
+
 /** Call to a specific worker */
 async function callWorker(
     worker: Worker,
@@ -54,7 +59,7 @@ async function callWorker(
         };
         const onError = (ev: ErrorEvent): void => {
             cleanup();
-            reject(new Error(`Worker error: ${ev.message}`, { cause: ev.error }));
+            reject(createErrorFromEvent(ev));
         };
         const onAbort = (): void => {
             cleanup();
@@ -111,16 +116,16 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
             await waitForWorkerReady(worker, this.options.initTimeout, signal);
             const onError = (ev: ErrorEvent): void => {
                 // eslint-disable-next-line no-console
-                console.error(`${this.options.name} worker error`, ev);
+                console.warn(`${this.options.name} worker error`, ev);
 
                 worker.removeEventListener('error', onError);
-                this.destroyWorker(worker);
+                this.destroyWorker(worker, createErrorFromEvent(ev));
                 this.handlePendingBorrow();
             };
             worker.addEventListener('error', onError);
             return worker;
         } catch (ex) {
-            this.destroyWorker(worker);
+            this.destroyWorker(worker, ex as Error);
             this.handlePendingBorrow();
             throw ex;
         }
@@ -148,7 +153,10 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
             const numToDestroy = idleWorkers.length - minIdle;
             for (let i = 0; i < numToDestroy; i++) {
                 const worker = idleWorkers[i]!;
-                this.destroyWorker(worker);
+                this.destroyWorker(
+                    worker,
+                    new Error(`Worker in pool ${this.options.name} has been destroyed due to idle timeout`),
+                );
             }
         }, this.options.idleTimeout);
         this.cleanupScheduleId = id;
@@ -166,12 +174,12 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
     }
 
     /** destroy worker and remove it from the pool */
-    destroyWorker(worker: TaggedWorker<this>): void {
+    destroyWorker(worker: TaggedWorker<this>, reason: Error): void {
         if (!this.workers.delete(worker)) {
             // Worker already removed
             return;
         }
-        worker[kInfo].controller.abort(new Error(`Worker in pool ${this.options.name} has been destroyed`));
+        worker[kInfo].controller.abort(reason);
     }
 
     /** Get an idle worker */
