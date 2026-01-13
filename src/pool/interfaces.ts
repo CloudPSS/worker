@@ -19,12 +19,12 @@ export interface WorkerResult<R> {
 /**
  * Create a {@link WorkerFunctionResult}
  */
-export function WorkerResult<R>(result: R, transfer: Transferable[]): WorkerResult<R> {
+export function WorkerResult<R>(result: R, transfer: readonly Transferable[] | null | undefined): WorkerResult<R> {
     return Object.freeze({
         __proto__: null,
         [kWorkerResult]: true,
         result,
-        transfer,
+        transfer: transfer ?? [],
     }) as WorkerResult<R>;
 }
 

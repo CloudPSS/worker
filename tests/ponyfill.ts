@@ -60,7 +60,8 @@ describe('node polyfill', () => {
         const onerror = jest.fn();
         // eslint-disable-next-line unicorn/prefer-add-event-listener
         worker.onmessage = onmessage;
-        worker.addEventListener('messageerror', onmessageerror);
+        // eslint-disable-next-line unicorn/prefer-add-event-listener
+        worker.onmessageerror = onmessageerror;
         // eslint-disable-next-line unicorn/prefer-add-event-listener
         worker.onerror = onerror;
 

@@ -13,6 +13,13 @@ describe('WorkerResult', () => {
         expect(Object.getPrototypeOf(result)).toBe(null);
     });
 
+    it('handles null or undefined transfer', () => {
+        const result1 = WorkerResult('test', null);
+        const result2 = WorkerResult('test', undefined);
+        expect(result1.transfer).toEqual([]);
+        expect(result2.transfer).toEqual([]);
+    });
+
     it('is identified correctly', () => {
         expect(isWorkerResult(WorkerResult('test', []))).toBe(true);
         expect(isWorkerResult({})).toBe(false);

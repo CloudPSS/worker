@@ -1,6 +1,4 @@
-import { createWorkerPoolOptions, type WorkerPoolOptions } from '../../dist/pool/options.js';
-
-// tests/pool/options.test.ts
+import { createWorkerPoolOptions } from '../../dist/pool/options.js';
 
 describe('createWorkerPoolOptions', () => {
     it('returns an options object from minimal input', () => {
