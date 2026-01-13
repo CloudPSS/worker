@@ -43,7 +43,8 @@ export function isWorkerResult<R>(value: unknown): value is WorkerResult<R> {
 export type WorkerFunction<A extends any[] = any[], R = any> = (...args: A) => MaybeAsync<R | WorkerResult<R>>;
 
 /** Return type of a worker function wrapped in a Promise */
-export type WorkerFunctionReturn<W> = W extends WorkerFunction<infer _, infer R> ? R : never;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type WorkerFunctionReturn<W> = W extends WorkerFunction<any, infer R> ? R : never;
 
 /** Interface of a worker exposing functions of type WorkerFunction */
 export type WorkerInterface<T extends Record<string, WorkerFunction> = Record<string, WorkerFunction>> =

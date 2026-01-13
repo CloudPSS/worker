@@ -160,7 +160,7 @@ pool.destroy();
 - `interface WorkerPoolOptions`
   - `name?: string` – Name of the pool (used in error messages). Default: `'worker-pool'`.
   - `maxWorkers?: number` – Maximum number of workers in the pool. Default: `HARDWARE_CONCURRENCY - 1`, at least `1`.
-  - `minIdleWorkers?: number` – Minimum number of idle workers to keep. Default: `1`.
+  - `minIdleWorkers?: number` – Minimum number of idle workers to keep. Default: `0`.
   - `idleTimeout?: number` – Milliseconds before extra idle workers are cleaned up. `0` disables cleanup. Default: `5000`.
   - `initTimeout?: number` – Milliseconds to wait for a worker to signal readiness before failing. Default: `30000`.
   - `creationDelay?: number` – Delay before creating a new worker when the pool is already warm. Default: `0`.

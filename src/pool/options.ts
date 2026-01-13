@@ -11,7 +11,7 @@ export interface WorkerPoolOptions {
     maxWorkers?: number;
     /**
      * Minimum number of idle workers to keep.
-     * @default 1
+     * @default 0
      */
     minIdleWorkers?: number;
     /**
@@ -39,7 +39,7 @@ export interface WorkerPoolOptions {
 export function createWorkerPoolOptions(options: WorkerPoolOptions | undefined): Required<WorkerPoolOptions> {
     const name = String(options?.name ?? 'worker-pool');
     let maxWorkers = Math.trunc(options?.maxWorkers ?? HARDWARE_CONCURRENCY - 1);
-    let minIdleWorkers = Math.trunc(options?.minIdleWorkers ?? 1);
+    let minIdleWorkers = Math.trunc(options?.minIdleWorkers ?? 0);
     let idleTimeout = Number(options?.idleTimeout ?? 5000);
     let initTimeout = Number(options?.initTimeout ?? 30000);
     let creationDelay = Number(options?.creationDelay ?? 0);
