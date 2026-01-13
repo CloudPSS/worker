@@ -216,7 +216,7 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
         transfer?: Transferable[],
     ): Promise<ReturnType<WorkerMethod<T, M>>> {
         const info = worker[kInfo];
-        if (info == null) {
+        if (info?.tag !== this.tag) {
             throw new Error('Invalid tagged worker');
         }
         const result = await callWorker(worker, info.controller.signal, method, args, transfer);

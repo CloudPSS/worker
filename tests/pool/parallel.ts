@@ -9,7 +9,7 @@ describe('should work with correct parallelism', () => {
         POOL.destroy();
     });
     afterAll(() => {
-        POOL.destroy();
+        POOL[Symbol.dispose]();
     });
 
     it('worker count', () => {

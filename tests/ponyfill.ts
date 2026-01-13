@@ -172,4 +172,9 @@ describe('node polyfill', () => {
         worker.postMessage('test', { transfer: [new ArrayBuffer(0)] });
         expect(worker[kWorker].postMessage).toHaveBeenCalledWith('test', [expect.any(ArrayBuffer)]);
     });
+
+    it('worker thread', () => {
+        nodePolyfill.onMessage(() => null);
+        nodePolyfill.postMessage({ __test__node_polyfill_worker_thread__: true });
+    });
 });
