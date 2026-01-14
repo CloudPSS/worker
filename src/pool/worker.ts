@@ -74,11 +74,9 @@ export function expose<const T extends WorkerRecord>(
     worker: (() => MaybeAsync<T>) | MaybeAsync<T>,
 ): WorkerInterface<T> {
     if (!IS_WORKER_THREAD || exposed) {
-        return null;
+        return;
     }
     exposed = true;
     notifyReady(exposeImpl(worker));
-
-    // This dummy implementation is only for type inference
-    return null;
+    return;
 }

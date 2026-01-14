@@ -52,7 +52,7 @@ export type WorkerRecord = Record<string, WorkerFunction>;
 
 /** Interface of a worker exposing functions of type WorkerFunction */
 export type WorkerInterface<T extends WorkerRecord = WorkerRecord> =
-    | null
+    | undefined
     | {
           readonly [K in keyof T & string]: (...args: Parameters<T[K]>) => WorkerFunctionReturn<T[K]>;
       };
