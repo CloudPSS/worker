@@ -103,7 +103,7 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
     }
 
     /** destroy worker and remove it from the pool */
-    destroyWorker(worker: TaggedWorker<this>, reason: Error): void {
+    destroyWorker(worker: TaggedWorker<this>, reason?: Error): void {
         if (!this.workers.delete(worker)) {
             // Worker already removed
             return;
