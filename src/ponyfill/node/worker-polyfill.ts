@@ -4,19 +4,24 @@ import { createNodeWorker } from './worker.js';
 import { filterNodeTransferable } from './utils.js';
 
 /** Create ErrorEvent */
-function createErrorEvent(error: unknown): ErrorEvent {
-    const ev = new Event('error', {}) as ErrorEvent;
-    const message = isNativeError(error) ? error.message : String(error);
-    Object.defineProperty(ev, 'message', {
-        value: message,
-        configurable: true,
-    });
-    Object.defineProperty(ev, 'error', {
-        value: error,
-        configurable: true,
-    });
-    return ev;
-}
+const createErrorEvent: (error: unknown) => ErrorEvent =
+    typeof ErrorEvent == 'function'
+        ? (error) => {
+              const message = isNativeError(error) ? error.message : String(error);
+              return new ErrorEvent('error', {
+                  message,
+                  error,
+              });
+          }
+        : (error) => {
+              const ev = new Event('error', {}) as ErrorEvent;
+              const message = isNativeError(error) ? error.message : String(error);
+              return Object.defineProperties(ev, {
+                  message: { value: message, configurable: true },
+                  error: { value: error, configurable: true },
+                  [Symbol.toStringTag]: { value: 'ErrorEvent' },
+              });
+          };
 
 const kWorker = Symbol.for('@cloudpss/worker:worker');
 /** Worker polyfill */
