@@ -1030,9 +1030,9 @@ packages:
     resolution:
       { integrity: sha512-Jt0vHyM+jmUBqojB7E1NIYadt0vI0Qxjxd2TErW94wDz+E2LAm5vKMXXwg6ZZBTHPuUlDgQHKXvjGBdfcF1ZDQ== }
 
-  brace-expansion@5.0.3:
+  brace-expansion@5.0.4:
     resolution:
-      { integrity: sha512-fy6KJm2RawA5RcHkLa1z/ScpBeA762UF9KmZQxwIbDtRJrgLzM10depAiEQ+CXYcoiqW1/m96OAAoke2nE9EeA== }
+      { integrity: sha512-h+DEnpVvxmfVefa4jFbCf5HdH5YMDXRsmKflpf1pILZWRFlTbJpxeU55nJl4Smt5HQaGzg1o6RHFPJaOqnmBDg== }
     engines: { node: 18 || 20 || >=22 }
 
   braces@3.0.3:
@@ -2119,9 +2119,9 @@ packages:
     resolution:
       { integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw== }
 
-  node-addon-api@8.5.0:
+  node-addon-api@8.6.0:
     resolution:
-      { integrity: sha512-/bRZty2mXUIFY/xU5HLvveNHlswNJej+RnxBjOMkidWfwZzgTbPG1E3K5TOxRLOR+5hX7bSofy8yf1hZevMS8A== }
+      { integrity: sha512-gBVjCaqDlRUk0EwoPNKzIr9KkS9041G/q31IBShPs1Xz6UTA+EXdZADbzqAJQrpDRq71CIMnOP5VMut3SL0z5Q== }
     engines: { node: ^18 || ^20 || >= 21 }
 
   node-gyp-build@4.8.4:
@@ -3375,7 +3375,7 @@ snapshots:
     dependencies:
       '@napi-ffi/get-symbol-from-current-process-h': 1.0.4
       debug: 4.4.3
-      node-addon-api: 8.5.0
+      node-addon-api: 8.6.0
       node-gyp-build: 4.8.4
     transitivePeerDependencies:
       - supports-color
@@ -3739,7 +3739,7 @@ snapshots:
     dependencies:
       balanced-match: 1.0.2
 
-  brace-expansion@5.0.3:
+  brace-expansion@5.0.4:
     dependencies:
       balanced-match: 4.0.4
 
@@ -4722,7 +4722,7 @@ snapshots:
 
   minimatch@10.2.4:
     dependencies:
-      brace-expansion: 5.0.3
+      brace-expansion: 5.0.4
 
   minimatch@3.1.5:
     dependencies:
@@ -4746,7 +4746,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  node-addon-api@8.5.0: {}
+  node-addon-api@8.6.0: {}
 
   node-gyp-build@4.8.4: {}
 
