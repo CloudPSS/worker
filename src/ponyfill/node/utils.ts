@@ -1,13 +1,17 @@
-import {
-    isMarkedAsUntransferable,
-    type Transferable as NodeTransferable,
-    type StructuredSerializeOptions as NodeStructuredSerializeOptions,
+import type {
+    Transferable as NodeTransferable,
+    StructuredSerializeOptions as NodeStructuredSerializeOptions,
 } from 'node:worker_threads';
+import worker_threads from 'node:worker_threads';
+
+const { isMarkedAsUntransferable } = worker_threads;
 
 /** Filter transferable array */
-function filterTransferableArray(transfer: readonly Transferable[]): NodeTransferable[] {
-    return transfer.filter((item): item is NodeTransferable => !isMarkedAsUntransferable(item));
-}
+const filterTransferableArray: (transfer: readonly Transferable[]) => NodeTransferable[] =
+    typeof isMarkedAsUntransferable == 'function'
+        ? (transfer: readonly Transferable[]) =>
+              transfer.filter((item): item is NodeTransferable => !isMarkedAsUntransferable(item))
+        : (transfer: readonly Transferable[]) => transfer as NodeTransferable[];
 
 /** Filter out untransferable items */
 export function filterNodeTransferable(
