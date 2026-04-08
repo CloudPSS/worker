@@ -44,7 +44,7 @@ describe('browser polyfill', () => {
 
 describe('node polyfill', () => {
     const kWorker = Symbol.for('@cloudpss/worker:worker');
-    let worker: nodePolyfill.Worker & { [kWorker]: import('worker_threads').Worker };
+    let worker: nodePolyfill.Worker & { [kWorker]: import('node:worker_threads').Worker };
     beforeEach(() => {
         worker = new nodePolyfill.Worker(new URL('data:text/javascript;base64,'), {
             type: 'module',

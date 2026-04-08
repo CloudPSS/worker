@@ -231,7 +231,6 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
     ): Promise<ReturnType<WorkerMethod<T, M>>> {
         const worker = await this.borrowWorker();
         try {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
             return await this.callWorker<M>(worker, method, args, transfer);
         } finally {
             this.returnWorker(worker);

@@ -4,13 +4,11 @@ import type {
 } from 'node:worker_threads';
 import worker_threads from 'node:worker_threads';
 
-const { isMarkedAsUntransferable } = worker_threads;
-
 /** Filter transferable array */
 const filterTransferableArray: (transfer: readonly Transferable[]) => NodeTransferable[] =
-    typeof isMarkedAsUntransferable == 'function'
+    typeof worker_threads.isMarkedAsUntransferable == 'function'
         ? (transfer: readonly Transferable[]) =>
-              transfer.filter((item): item is NodeTransferable => !isMarkedAsUntransferable(item))
+              transfer.filter((item): item is NodeTransferable => !worker_threads.isMarkedAsUntransferable(item))
         : (transfer: readonly Transferable[]) => transfer as NodeTransferable[];
 
 /** Filter out untransferable items */
