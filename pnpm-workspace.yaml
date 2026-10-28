@@ -1,14 +1,8 @@
-ignoredBuiltDependencies:
-  - '@napi-ffi/get-symbol-from-current-process-h'
-  - unrs-resolver
+configDependencies:
+  '@cloudpss/pnpm-plugin-config': ~4.1.5
 
-onlyBuiltDependencies:
-  - '@napi-ffi/ref-napi'
-
-publicHoistPattern:
-  - '*eslint*'
-  - '*prettier*'
-  - '*commitlint*'
-  - lint-staged
-
-shellEmulator: true
+allowBuilds:
+  '@napi-ffi/get-symbol-from-current-process-h': false
+  '@napi-ffi/ref-napi': true
+  '@parcel/watcher': false
+  unrs-resolver: false

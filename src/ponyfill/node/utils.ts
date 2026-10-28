@@ -23,7 +23,7 @@ export function filterNodeTransferable(
     const options = transfer as StructuredSerializeOptions;
     if (options.transfer?.length) {
         const filtered = filterTransferableArray(options.transfer);
-        options.transfer = filtered;
+        if (filtered !== options.transfer) options.transfer = filtered;
     }
     return options as NodeStructuredSerializeOptions;
 }

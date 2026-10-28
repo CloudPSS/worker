@@ -14,7 +14,7 @@ export function nextId(): number {
 
 /** Check if the input is a blob */
 export function isBlob(input: unknown): input is Blob {
-    if (typeof input != 'object' || input == null) {
+    if (input == null || typeof input != 'object') {
         return false;
     }
     const blob = input as Blob;
@@ -23,7 +23,7 @@ export function isBlob(input: unknown): input is Blob {
 
 /** Check if the input is an URL */
 export function isURL(input: unknown): input is URL {
-    if (typeof input != 'object' || input == null) {
+    if (input == null || typeof input != 'object') {
         return false;
     }
     return typeof (input as URL).href == 'string';

@@ -26,7 +26,7 @@ export function WorkerResult<const R>(
         [kWorkerResult]: true,
         result,
         transfer: transfer ?? [],
-    }) as WorkerResult<R>;
+    });
 }
 
 /**
