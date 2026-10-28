@@ -36,10 +36,15 @@ describe('should accept different worker sources', () => {
     });
 
     it('value of Worker', () => {
-        expect(
-            // @ts-expect-error testing Worker value
-            () => new WorkerPool<WorkerInterface<WorkerAPI>>(new Worker(dataUrl, { type: 'module' }), { name: 'test' }),
-        ).toThrow(`Worker source of test is invalid`);
+        const worker = new Worker(dataUrl, { type: 'module' });
+        try {
+            expect(
+                // @ts-expect-error testing Worker value
+                () => new WorkerPool<WorkerInterface<WorkerAPI>>(worker, { name: 'test' }),
+            ).toThrow(`Worker source of test is invalid`);
+        } finally {
+            worker.terminate();
+        }
     });
 
     it('factory returning Worker', async () => {

@@ -60,6 +60,7 @@ describe('node polyfill', () => {
 
     it('type', () => {
         const worker: Worker = new nodePolyfill.Worker(new URL('data:text/javascript;base64,'));
+        worker.terminate();
     });
 
     it('events', () => {
