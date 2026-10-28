@@ -25,7 +25,9 @@ async function createWorkerFromUrl(url: string | URL, options: WorkerOptions): P
         const { resolveObjectURL } = process.getBuiltinModule('node:buffer');
         const blob = resolveObjectURL(urlStr);
         if (blob == null) {
-            throw new Error(`Cannot resolve blob URL: ${urlStr}`);
+            return () => {
+                throw new Error(`Cannot resolve blob URL: ${urlStr}`);
+            };
         }
         return await createWorkerFromSource(await blob.text(), options);
     }

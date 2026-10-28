@@ -1,5 +1,5 @@
 import { isWorkerMessage, kID, type WorkerRequest, type WorkerResponse } from './message.js';
-import { createErrorFromEvent, nextId } from './utils.js';
+import { createErrorFromEvent, isSharedArrayBuffer, nextId } from './utils.js';
 
 const MAX_COPY_OVERHEAD = 1024 * 16; // 16KB
 
@@ -24,6 +24,7 @@ export async function callWorker(
     transfer?: Transferable[],
 ): Promise<unknown> {
     signal?.throwIfAborted();
+    args = args.slice(); // make a shallow copy of the arguments array to avoid mutating the original
     const id = nextId();
     const request: WorkerRequest = {
         [kID]: id,
@@ -34,7 +35,8 @@ export async function callWorker(
         transfer = [];
         for (let i = 0; i < args.length; i++) {
             const arg = args[i];
-            if (!ArrayBuffer.isView(arg) || !shouldCopyArrayBufferView(arg)) continue;
+            if (!ArrayBuffer.isView(arg) || isSharedArrayBuffer(arg.buffer) || !shouldCopyArrayBufferView(arg))
+                continue;
             const copied = copyArrayBufferView(arg);
             args[i] = copied;
             transfer.push(copied.buffer);

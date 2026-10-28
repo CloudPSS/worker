@@ -28,3 +28,8 @@ export function isURL(input: unknown): input is URL {
     }
     return typeof (input as URL).href == 'string';
 }
+
+/** Check if the input is a SAB */
+export function isSharedArrayBuffer(input: ArrayBufferLike): input is SharedArrayBuffer {
+    return Object.prototype.toString.call(input) === '[object SharedArrayBuffer]';
+}

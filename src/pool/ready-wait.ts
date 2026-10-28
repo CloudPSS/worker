@@ -2,9 +2,16 @@ import { isWorkerMessage, kID, type WorkerInitializationMessage } from './messag
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { notifyReady } from './ready-notify.js';
 
+const makeAbortError = (signal?: AbortSignal): Error =>
+    (signal?.reason as Error | null) ?? new Error('Worker initialization aborted');
+
 /** Low level API, wait for a worker to become available, i.e., call {@link notifyReady} method */
 export async function waitForWorkerReady(worker: Worker, timeout = 30000, signal?: AbortSignal): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(makeAbortError(signal));
+            return;
+        }
         const onMessage = ({ data }: MessageEvent<WorkerInitializationMessage>): void => {
             if (!isWorkerMessage(data) || data[kID] !== -1) return;
             cleanup();
@@ -24,7 +31,7 @@ export async function waitForWorkerReady(worker: Worker, timeout = 30000, signal
         };
         const onAbort = (): void => {
             cleanup();
-            reject((signal?.reason as Error | null) ?? new Error('Worker initialization aborted'));
+            reject(makeAbortError(signal));
         };
         const cleanup = (): void => {
             if (timeoutId) clearTimeout(timeoutId);
