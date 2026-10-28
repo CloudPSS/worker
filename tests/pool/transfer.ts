@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import ref from '@napi-ffi/ref-napi';
+import koffi from 'koffi';
 import { WorkerPool, type WorkerInterface } from '../../dist/pool/index.js';
 import { type WorkerAPI, WORKER_SOURCE } from './.helper.ts';
 
@@ -66,25 +66,25 @@ describe('should transfer data correctly', () => {
 
     it('transfer to worker', async () => {
         const data = DATA.slice();
-        const addressBefore = ref.address(data as Buffer<ArrayBuffer>);
+        const addressBefore = koffi.address(data);
         const result = (await POOL.call('echo', [data], [data.buffer])) as Uint8Array<ArrayBuffer>;
         checkResult(result, DATA);
         // Source data should be transferred
         expect(data.byteLength).toBe(0);
         // Worker data should not be transferred
-        const addressAfter = ref.address(result as Buffer<ArrayBuffer>);
+        const addressAfter = koffi.address(result);
         expect(addressBefore).not.toBe(addressAfter);
     });
 
     it('transfer both ways', async () => {
         const data = DATA.slice();
-        const addressBefore = ref.address(data as Buffer<ArrayBuffer>);
+        const addressBefore = koffi.address(data);
         const result = await POOL.call('transfer', [data], [data.buffer]);
         checkResult(result, DATA);
         // Source data should be transferred
         expect(data.byteLength).toBe(0);
         // Worker data should be transferred back
-        const addressAfter = ref.address(result as Buffer<ArrayBuffer>);
+        const addressAfter = koffi.address(result);
         expect(addressBefore).toBe(addressAfter);
     });
 });
