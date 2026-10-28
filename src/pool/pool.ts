@@ -39,9 +39,9 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
     /** create and initialize worker */
     private async initWorker(info: WorkerInfo<this>, signal: AbortSignal): Promise<TaggedWorker<this>> {
         const worker = (await this.factory()) as TaggedWorker<this>;
-        signal.throwIfAborted();
         worker[kInfo] = info;
         try {
+            signal.throwIfAborted();
             await waitForWorkerReady(worker, this.options.initTimeout, signal);
             const onError = (ev: ErrorEvent): void => {
                 // eslint-disable-next-line no-console
@@ -54,8 +54,8 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
             worker.addEventListener('error', onError);
             return worker;
         } catch (ex) {
-            this.destroyWorker(worker, ex as Error);
-            this.handlePendingBorrow();
+            // Initializing workers are not in this.workers yet.
+            worker.terminate();
             throw ex;
         }
     }
@@ -142,6 +142,7 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
                 worker = await task;
             } finally {
                 this.initializingWorkers.delete(task);
+                this.handlePendingBorrow();
             }
             if (controller.signal.aborted) {
                 worker.terminate();
@@ -185,7 +186,7 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
     /** handle pending borrow */
     private handlePendingBorrow(): void {
         void Promise.resolve()
-            .then(async () => {
+            .then(() => {
                 while (this.pendingBorrow.length > 0) {
                     const pending = this.pendingBorrow.shift()!;
                     const existingIdle = this.findIdleWorker();
@@ -195,7 +196,8 @@ export class WorkerPool<T extends WorkerInterface = WorkerInterface> implements 
                     }
                     const created = this.createWorker();
                     if (created != null) {
-                        pending(await created);
+                        // Forward creation failures to the borrower as well as successes.
+                        pending(created);
                         continue;
                     }
                     this.pendingBorrow.unshift(pending);
